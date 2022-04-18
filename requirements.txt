@@ -1,0 +1,6 @@
+numpy
+scipy
+emcee
+scikit-learn
+zeus-mcmc
+h5py
