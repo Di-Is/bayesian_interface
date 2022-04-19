@@ -1,5 +1,6 @@
 import time
 import typing
+import types
 
 import numpy as np
 
@@ -38,6 +39,9 @@ class ThreadPool(ThreadPoolExecutor):
         if timeout is not None:
             end_time = timeout + time.monotonic()
 
+        if isinstance(iterables[0], types.GeneratorType):
+            iterables = np.array([list(i) for i in iterables])
+
         nwalkers = len(iterables[0])
         iterables = self._split_data(iterables[0])
         fs = [self.submit(fn, *args) for args in zip(*iterables)]
@@ -62,3 +66,42 @@ class ThreadPool(ThreadPoolExecutor):
         result = np.empty(nwalkers, dtype=np.float64)
         result = self._set_result(result_lst, result, nwalkers)
         return result
+
+
+class PoolWrapper:
+    """the pool wrapper class for the nest multi-process,thread"""
+
+    def __init__(self, pool_cls: typing.Callable, *args, **kwargs):
+        """Constractor
+        :param pool_cls: the pool class (not initialized)
+        :param args: the pool class __init__ arguments
+        :param kwargs: the pool class __init__ kwargs
+        """
+        self._args = args
+        self._kwargs = kwargs
+        self._pool_cls = pool_cls
+        self._pool = None
+
+    @property
+    def map(self):
+        """map function
+        :return: map function
+        """
+        if self._pool is None:
+            self._pool = self._init_pool()
+        return self._pool.map
+
+    @property
+    def submit(self):
+        """submit method
+        :return: submit method
+        """
+        if self._pool is None:
+            self._pool = self._init_pool()
+        return self._pool.submit
+
+    def _init_pool(self):
+        """initializing pool class
+        :return: initialized pool class
+        """
+        return self._pool_cls(*self._args, **self._kwargs)

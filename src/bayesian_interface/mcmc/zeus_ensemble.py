@@ -8,11 +8,11 @@ from ..logger import get_progress_bar
 from ..misc_calc import split_nsteps
 from ..data_structure.chain import SamplingResult, SamplingResultMaker
 
+SAMPLING_METHOD = "/mcmc/zeus/ensemble_sampler"
+
 
 class EnsembleSampler(EnsembleMCMCBase):
-    """emceeのサンプラー
-    Adapterパターン
-    """
+    """Adapter class for zeus.EnsembleSampler"""
 
     def __init__(
         self,
@@ -22,44 +22,31 @@ class EnsembleSampler(EnsembleMCMCBase):
         data: typing.Optional[SamplingResult] = None,
         chain_id: int = 0,
         nsteps_chunk: int = 100,
-        **kwargs: dict,
+        **kwargs: dict[str, typing.Any],
     ) -> None:
-        """
-        :param chain_dat: データ格納用のクラス
-        :param lnprob: 尤度関数
-        :param nsteps_chunk: 何ステップおきにデータを保存するか
+        """Constractor
+        :param nwalkers: the number of nwalkers
+        :param ndim: the number of dimension
+        :param lnprob: the log probability function
+        :param data: the dataclass for sampling result
+        :param chain_id: the chain id
+        :param nsteps_chunk: the chunk size for spliting nsteps
+        :param kwargs: kwargs for __init__ in emcee.EnsembleSampler class
         """
         self._data = self._init_data(data, chain_id, ndim, nwalkers)
         self._nsteps_chunk = nsteps_chunk
         self._chain_id = chain_id
         self._sampler = zeus.EnsembleSampler(nwalkers, ndim, lnprob, **kwargs)
 
-    @staticmethod
-    def _init_data(data: typing.Optional[SamplingResult], chain_id, ndim, nwalkers):
-        def init(dat):
-            dat.sampler_name.set("/mcmc/zeus/ensemble_sampler")
-            dat.chain_id.set(chain_id)
-            dat.chain.create((0, nwalkers, ndim), maxshape=(None, nwalkers, ndim))
-            dat.lnprob.create((0, nwalkers), maxshape=(None, nwalkers))
-            return dat
-
-        if data is None:
-            data = SamplingResultMaker().get()
-            data = init(data)
-        else:
-            if not all(
-                [
-                    getattr(data, name).has()
-                    for name in ["sampler_name", "chain_id", "chain", "lnprob"]
-                ]
-            ):
-                data = init(data)
-        return data
-
     def run_mcmc(
         self, init_state: np.ndarray, nsteps: int, progress: bool = True
     ) -> SamplingResult:
-
+        """Executing mcmc sampling
+        :param init_state: the sampling initial state
+        :param nsteps: the number of sampling steps
+        :param progress: whether display or not display
+        :return: the sampling result
+        """
         bar = get_progress_bar(
             display=progress,
             total=nsteps,
@@ -76,10 +63,43 @@ class EnsembleSampler(EnsembleMCMCBase):
         bar.close()
         return self._data
 
-    def _save_chain(self):
-        """サンプリング結果を保存する
-        :return:
+    @staticmethod
+    def _init_data(
+        data: typing.Optional[SamplingResult], chain_id: int, nwalkers: int, ndim: int
+    ):
+        """initializing sampling result data class
+        :param data: the instance of sampling result data class
+        :param chain_id: chain id
+        :param nwalkers: the number of walker
+        :param ndim: the number of parameter dimension
+        :return: initialized data class
         """
+
+        def init(dat: SamplingResult) -> SamplingResult:
+            """initializing sampler result class
+            :param dat: un-initialized data class
+            :return: initialized data class
+            """
+            dat.sampler_name.set(SAMPLING_METHOD)
+            dat.chain_id.set(chain_id)
+            dat.chain.create((0, nwalkers, ndim), maxshape=(None, nwalkers, ndim))
+            dat.lnprob.create((0, nwalkers), maxshape=(None, nwalkers))
+            return dat
+
+        if data is None:
+            data = init(SamplingResultMaker().get())
+        else:
+            if not all(
+                [
+                    getattr(data, name).has()
+                    for name in ["sampler_name", "chain_id", "chain", "lnprob"]
+                ]
+            ):
+                data = init(data)
+        return data
+
+    def _save_chain(self) -> None:
+        """Saving sampling result"""
         self._data.chain.append(self._sampler.get_chain(), axis=0)
         self._data.lnprob.append(self._sampler.get_log_prob(), axis=0)
 
