@@ -8,8 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 class ThreadPool(ThreadPoolExecutor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, vectorize: bool = False, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.vectorize = vectorize
 
     def _split_data(self, arr: np.ndarray):
         nwalkers, ndim = arr.shape
@@ -35,15 +36,21 @@ class ThreadPool(ThreadPoolExecutor):
             result[idx] = arr[i]
         return result
 
-    def map(self, fn, *iterables, timeout=None, chunksize: int = 1):
+    def map_normal(self, fn, *iterables, timeout=None):
+        pass
+
+    def map_vectorize(self, fn, *iterables, timeout=None):
+        pass
+
+    def map(self, fn, *iterables, timeout=None):
         if timeout is not None:
             end_time = timeout + time.monotonic()
 
-        if isinstance(iterables[0], types.GeneratorType):
-            iterables = np.array([list(i) for i in iterables])
-
-        nwalkers = len(iterables[0])
-        iterables = self._split_data(iterables[0])
+        if self.vectorize:
+            if isinstance(iterables[0], types.GeneratorType):
+                iterables = np.array([list(i) for i in iterables])
+            nwalkers = len(iterables[0])
+            iterables = self._split_data(iterables[0])
         fs = [self.submit(fn, *args) for args in zip(*iterables)]
 
         # Yield must be hidden in closure so that the futures are submitted
@@ -62,9 +69,12 @@ class ThreadPool(ThreadPoolExecutor):
                 for future in fs:
                     future.cancel()
 
-        result_lst = list(result_iterator())
-        result = np.empty(nwalkers, dtype=np.float64)
-        result = self._set_result(result_lst, result, nwalkers)
+        if self.vectorize:
+            result_lst = list(result_iterator())
+            result = np.empty(nwalkers, dtype=np.float64)
+            result = self._set_result(result_lst, result, nwalkers)
+        else:
+            result = list(result_iterator())
         return result
 
 
@@ -105,3 +115,8 @@ class PoolWrapper:
         :return: initialized pool class
         """
         return self._pool_cls(*self._args, **self._kwargs)
+
+    def __getstate__(self):
+        del self._pool
+        self._pool = None
+        return self.__dict__

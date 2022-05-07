@@ -33,8 +33,10 @@ class Logger:
 class _DummyProgressBar(object):
     """ダミーのプログレスバー"""
 
-    def __init__(self):
-        pass
+    def __init__(self, iterable=None, *args, **kwargs):
+        self._iterable = iterable
+
+        self._count = -1
 
     def __enter__(self, *args, **kwargs):
         return self
@@ -42,17 +44,29 @@ class _DummyProgressBar(object):
     def __exit__(self, *args, **kwargs):
         pass
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        self._count += 1
+        if self._count == len(self._iterable):
+            raise StopIteration()
+        return self._iterable[self._count]
+
     def update(self, count):
         pass
 
+    def close(self):
+        pass
 
-def get_progress_bar(display, *arg, **kwargs):
+
+def get_progress_bar(display=False, *args, **kwargs):
     """プログレスバーのオブジェクトを取得する"""
     if display:
         if display is True:
-            pbar = tqdm.tqdm(*arg, **kwargs)
+            pbar = tqdm.tqdm(*args, **kwargs)
         else:
-            pbar = getattr(tqdm, "tqdm_" + display)(*arg, **kwargs)
+            pbar = getattr(tqdm, "tqdm_" + display)(*args, **kwargs)
     else:
-        pbar = _DummyProgressBar()
+        pbar = _DummyProgressBar(*args, **kwargs)
     return pbar

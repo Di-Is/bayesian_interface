@@ -1,23 +1,17 @@
 from typing import Any, Optional
-from dataclasses import dataclass
 
 import numpy as np
 
-from .structure_parts import (
-    AttrBase,
-    ArrayBase,
-    init_check,
-    AttrParamBase,
-    ArrayParamBase,
-)
+import bayesian_interface.data_structure.structure_parts as parts
 
 
-class Attr(AttrBase):
-    def __init__(self, name: str):
+class Attr(parts.AbsAttr):
+    def __init__(self, name: str, **kwargs):
         self.name = name
+        self._kwargs = kwargs
         self.value = None
 
-    @init_check
+    @parts.init_check
     def get(self) -> Any:
         return self.value
 
@@ -28,65 +22,66 @@ class Attr(AttrBase):
         return self.value is not None
 
 
-class Array(ArrayBase):
-    def __init__(self, name: str, dtype: Any) -> None:
+class Array(parts.AbsArray):
+    def __init__(self, name: str, **kwargs) -> None:
         self.name = name
-        self.dtype = dtype
+        self.kwargs = kwargs
         self.value: Optional[np.ndarray] = None
-        self._maxshape = None
 
     def has(self) -> bool:
         return self.value is not None
 
-    @init_check
-    def get(self, idx=None) -> np.ndarray:
+    @parts.init_check
+    def get(self, idx=None, copy: bool = True) -> np.ndarray:
         if idx is None:
-            return self.value.copy()
+            if copy:
+                return self.value.copy()
+            else:
+                self.value.flags.writeable = False
+                return self.value
         else:
-            return self.value.copy()[idx]
+            if copy:
+                return self.value.copy()[idx]
+            else:
+                self.value.flags.writeable = False
+                return self.value[idx]
 
-    @init_check
+    @parts.init_check
     def set(self, value, idx=None) -> None:
         if idx is None:
             self.value[:] = value
         else:
             self.value[idx] = value
 
-    def create(self, shape: tuple, maxshape: Optional[tuple] = None) -> None:
-        self._maxshape = maxshape
-        self.value = np.empty(shape, self.dtype)
+    def create(
+        self,
+        shape: tuple[int, ...],
+        maxshape: Optional[tuple[int | slice | None, ...]],
+        dtype: Any,
+        **kwargs
+    ) -> None:
+        self.value = np.empty(shape, dtype=dtype, **kwargs | self.kwargs)
 
-    @init_check
+    @parts.init_check
     def resize(self, shape: tuple[int, ...]):
-        if self._maxshape is not None:
-            if len(self._maxshape) != len(shape) or self._maxshape < shape:
-                raise ValueError("Exceed max shape")
-        self.value.resize(shape)
-
-    @init_check
-    def append(self, arr: np.ndarray, axis: Optional[int] = None) -> None:
-        self.value = np.append(self.value, arr, axis)
+        self.value = np.resize(self.value, shape)
 
     @property
-    def maxshape(self) -> Optional[tuple[int]]:
-        return self._maxshape
+    def ndim(self) -> int:
+        return self.value.ndim
 
-    @maxshape.setter
-    def maxshape(self, value: tuple[int, ...]) -> None:
-        pass
-
-
-@dataclass
-class AttrParam(AttrParamBase):
-    pass
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return self.value.shape
 
 
-@dataclass
-class ArrayParam(ArrayParamBase):
-    pass
+class AttrFactory(parts.AttrFactory):
+    @classmethod
+    def get_dataclass(cls) -> Attr.__class__:
+        return Attr
 
 
-if __name__ == "__main__":
-    a = Array("a", float)
-    a.create((1, 2, 3), (10, 3, 4, 2))
-    a.set(np.zeros((1, 2, 3)))
+class ArrayFactory(parts.AttrFactory):
+    @classmethod
+    def get_dataclass(cls) -> Array.__class__:
+        return Array
