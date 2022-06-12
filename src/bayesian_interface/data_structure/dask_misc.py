@@ -17,3 +17,18 @@ def make_chunks(shape: tuple, on_chain: bool, on_dim: bool) -> tuple:
         chunks.append(1)
 
     return tuple(chunks)
+
+
+def get_array_dim(shape: tuple, on_chain: bool, on_dim: bool) -> tuple[int, int, int]:
+    if on_chain:
+        nchain = shape[0]
+        nstep = shape[1]
+    else:
+        nchain = 0
+        nstep = shape[0]
+
+    if on_dim:
+        ndim = shape[-1]
+    else:
+        ndim = 0
+    return nchain, nstep, ndim

@@ -16,6 +16,8 @@ logger = Logger(__name__)
 
 
 class ConvergenceResult(bay_data.AbsData):
+    """Class to store the result of convergence check"""
+
     # Criterion method name
     criterion_method: bay_data.AbsAttr
     # convergence flag
@@ -58,7 +60,9 @@ class ConvergenceResult(bay_data.AbsData):
         return res
 
 
-class ThresholdType(Enum):
+class MagnitudeRelation(Enum):
+    """enum for magnitude relation"""
+
     equal = 0
     lower = 1
     lower_eq = 2
@@ -66,76 +70,106 @@ class ThresholdType(Enum):
     upper_eq = 4
 
 
-def check_relationship(threshold_type: ThresholdType, a: np.ndarray, b) -> bool:
-    match threshold_type:
-        case ThresholdType.equal:
+def check_relation(
+    relation_type: MagnitudeRelation, a: float | np.ndarray, b: float
+) -> bool:
+    """check magnitude relation between array and float or float and float
+    :param relation_type: magnitude relation type
+    :param a: array or float (ex. calculated criterion value)
+    :param b: float (ex. threshold value)
+    :return: flag
+    """
+    match relation_type:
+        case MagnitudeRelation.equal:
             return a == b
-        case ThresholdType.lower:
+        case MagnitudeRelation.lower:
             return a < b
-        case ThresholdType.lower_eq:
+        case MagnitudeRelation.lower_eq:
             return a <= b
-        case ThresholdType.upper:
+        case MagnitudeRelation.upper:
             return a > b
-        case ThresholdType.upper_eq:
+        case MagnitudeRelation.upper_eq:
             return a >= b
 
 
 class AbsStrategy(metaclass=ABCMeta):
-    @property
+    """Class for computing convergence statistics
+    This class is based on the strategy pattern.
+    """
+
+    def __init__(self, threshold: float) -> None:
+        self.threshold = threshold
+
     @abstractmethod
-    def expected_dim(self) -> int | tuple[int, ...]:
-        """expected input array dimension
-        :return: dimension number
+    def compute(self, array: np.ndarray) -> float:
+        """Compute convergence criterion value
+        :param array: mcmc chain or pre-processed mcmc chain
+        :return: convergence criterion value
         """
         pass
 
+    @property
     @abstractmethod
-    def compute(self, array: np.ndarray) -> np.ndarray | da.Array:
+    def expected_dim(self) -> int | tuple[int, ...]:
+        """Expected input array dimension
+        :return: dimension number
+        """
         pass
 
     @classmethod
     @property
     @abstractmethod
-    def threshold_type(cls) -> ThresholdType:  # noqa
+    def threshold_type(cls) -> MagnitudeRelation:  # noqa
+        """The relationship between the threshold and
+        the statistic that is considered to be convergent.
+        :return: threshold type
+        """
         pass
 
     @classmethod
     @property
     @abstractmethod
     def algorithm_name(cls) -> str:  # noqa
-        pass
-
-    @property
-    @abstractmethod
-    def threshold(self) -> float:
+        """algorithm name of convergence criterion
+        :return: algorithm name
+        """
         pass
 
     @property
     @abstractmethod
     def need_chain(self) -> bool:
-        pass
-
-    @property
-    @abstractmethod
-    def need_dim(self) -> bool:
+        """Whether multiple mcmc chains are needed to compute convergence statistics
+        :return: flag
+        """
         pass
 
     @property
     @abstractmethod
     def drop_chain(self) -> bool:
+        """Whether the dimension of the mcmc chain is lost after computing the convergence statistic
+        :return: flag
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def need_dim(self) -> bool:
+        """Whether multiple parameter dimensions are needed to compute convergence statistics
+        :return: flag
+        """
         pass
 
     @property
     @abstractmethod
     def drop_dim(self) -> bool:
+        """Whether the dimension of the parameter is lost after computing the convergence statistic
+        :return: flag
+        """
         pass
 
 
 class Convergence:
-    """
-    1. execute convergence check using strategy class
-    2. save criterion values to class
-    """
+    """Class to determine convergence of MCMC chains"""
 
     def __init__(
         self,
@@ -144,6 +178,12 @@ class Convergence:
         pre_process: typing.Optional[AbsPreprocess] = None,
         dask: bool = True,
     ):
+        """Constractor
+        :param strategy: strategy class for calculating convergence criterion. (dependency injection)
+        :param data: the data class for saving convergence criterion
+        :param pre_process: A class that preprocesses the MCMC chain before computing convergence statistics.
+        :param dask: whether to calculate using dask.
+        """
         self._strategy = strategy
         self._pre_process = pre_process
         if data is None:
@@ -151,7 +191,10 @@ class Convergence:
         self.data = data
         self.dask = dask
 
-    def check_initialized(self):
+    def check_initialized(self) -> bool:
+        """Check if data is initialized.
+        :return: flag
+        """
         names = [
             "criterion_method",
             "threshold_type",
@@ -171,14 +214,15 @@ class Convergence:
         threshold: typing.Optional[float] = None,
     ) -> ConvergenceResult:
         """
-        :param array: mcmc chain
-        :param on_chain:
-        :param on_dim:
-        :param threshold:
-        :return:
+        :param array: mcmc chain.
+        :param on_chain: Whether to have a chain dimension.
+        :param on_dim: Whether to have a dim(param) dimension.
+        :param threshold: convergence Threshold.
+        :return: convergence result.
         """
         logger.info(f"[{self._strategy.algorithm_name}] Start convergence check.")
 
+        # Error Check
         if array.ndim < sum([on_chain, on_dim]) + 1:
             raise ValueError("The dimension of the input array is missing.")
 
@@ -188,48 +232,38 @@ class Convergence:
         if self._strategy.need_dim and not on_dim:
             raise ValueError("The dimension of the input array is missing.")
 
-        if threshold is None:
-            threshold = self._strategy.threshold
-
-        if on_chain:
-            nchain = array.shape[0]
-            nstep = array.shape[1]
-        else:
-            nchain = 0
-            nstep = array.shape[0]
-
-        if on_dim:
-            ndim = array.shape[-1]
-        else:
-            ndim = 0
-
-        # Convert to dask array at pre-process
-        if self.dask and not isinstance(array, da.Array):
-            # NOTE: external dimensionに対する処理が書き換わるかも
-            chunks = bay_data.make_chunks(array.shape, on_chain, on_dim)
-            array = da.from_array(array, chunks=chunks)
-
         if self.data.criterion_method.has():
             if self.data.criterion_method.get() != self._strategy.algorithm_name:
                 raise ValueError("mismatch strategy and data.")
 
-        # do chain preprocess
+        if threshold is None:
+            threshold = self._strategy.threshold
+
+        nchain, nstep, ndim = bay_data.get_array_dim(array.shape, on_chain, on_dim)
+
+        # Convert to dask array before pre-process
+        if self.dask and not isinstance(array, da.Array):
+            chunks = bay_data.make_chunks(array.shape, on_chain, on_dim)
+            array = da.from_array(array, chunks=chunks)
+
+        # Pre-process the MCMC chain
         # TODO: 前処理前後にdask周りの処理を実装
         if self._pre_process is not None:
-            # メリット: データの保存がしやすい
-            # デメリット: preprocessが必要なのは、Strategyで処理するため
-            # 2つには対応関係がある。Strategyに処理を記述したほうが自然
             array = self._pre_process.compute(array, on_chain, on_dim)
 
-        # chain方向をsliceしてstrategyに投げるかどうか
+        # Convert to dask array after pre-process
+        if self.dask and not isinstance(array, da.Array):
+            chunks = bay_data.make_chunks(array.shape, on_chain, on_dim)
+            array = da.from_array(array, chunks=chunks)
+
+        # Whether to slice and pass in the chain direction when computing convergence statistics in the strategy class
         chain_slc = (
             on_chain and not self._strategy.need_chain and not self._strategy.drop_chain
         )
-        # dim方向をsliceしてstrategyに投げるかどうか
+        # Whether to slice and pass in the dim direction when computing convergence statistics in the strategy class
         dim_slc = on_dim and not self._strategy.need_dim and not self._strategy.drop_dim
 
-        # strategyにアレイを入れる際のindexを生成
-        # NOTE: 速度が遅い可能性有り
+        # execute compute
         res = []
         if chain_slc and dim_slc:
             for chain_id in range(nchain):
@@ -246,14 +280,11 @@ class Convergence:
         else:
             res = self._strategy.compute(array)
 
-        # compute criterion values
         if isinstance(array, da.Array):
             res = da.compute(res)[0]
-            res = np.asarray(res)
-        else:
-            res = res
+        res = np.asarray(res)
 
-        # padding criterion value array
+        # Align the dimensions of the computed convergence statistic
         if on_chain and self._strategy.drop_chain:
             res = np.repeat(res[None], nchain, axis=0)
         if on_dim and self._strategy.drop_dim:
@@ -267,7 +298,6 @@ class Convergence:
 
         # initialize data
         # TODO:ifブロックをメソッド化するか、shape,maxshapeのリファクタリングを実施
-
         if not self.check_initialized():
             if on_chain and on_dim:
                 cri_shape = (nchain, 0, ndim)
@@ -301,7 +331,7 @@ class Convergence:
             )
             self.data.steps.create(shape=(0,), maxshape=(None,), dtype=int)
 
-        convergences = check_relationship(self._strategy.threshold_type, res, threshold)
+        convergences = check_relation(self._strategy.threshold_type, res, threshold)
         self.data.threshold.set(threshold)
         self.data.threshold_type.set(self._strategy.threshold_type)
         if on_chain:
@@ -317,4 +347,7 @@ class Convergence:
 
     @property
     def algorithm_name(self) -> str:
+        """algorithm name for convergence check
+        :return: algorithm name
+        """
         return self._strategy.algorithm_name

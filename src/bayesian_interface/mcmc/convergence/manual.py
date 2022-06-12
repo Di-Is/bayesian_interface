@@ -5,7 +5,7 @@ import dask.array as da
 from dask.delayed import Delayed
 
 
-from .convergence import AbsStrategy, ThresholdType
+from .convergence import AbsStrategy, MagnitudeRelation
 from .misc import check_dimension
 
 
@@ -27,8 +27,8 @@ class Manual(AbsStrategy):
 
     @classmethod
     @property
-    def threshold_type(cls) -> ThresholdType:  # noqa
-        return ThresholdType.upper_eq
+    def threshold_type(cls) -> MagnitudeRelation:  # noqa
+        return MagnitudeRelation.upper_eq
 
     @property
     def expected_dim(self) -> int | tuple[int, ...]:

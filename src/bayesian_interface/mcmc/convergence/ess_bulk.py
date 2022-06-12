@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 
-from .convergence import AbsStrategy, ThresholdType
+from .convergence import AbsStrategy, MagnitudeRelation
 import bayesian_interface.mcmc.autocorr.autocorrtime as iat
 import bayesian_interface.mcmc.autocorr.ensemble as iat_ens
 from bayesian_interface.mcmc.autocorr import AutoCorrResultFactory
@@ -30,8 +30,8 @@ class ESSIATStrategy(AbsStrategy):
 
     @classmethod
     @property
-    def threshold_type(cls) -> ThresholdType:  # noqa
-        return ThresholdType.upper
+    def threshold_type(cls) -> MagnitudeRelation:  # noqa
+        return MagnitudeRelation.upper
 
     def compute(self, array: np.ndarray) -> np.ndarray:
         from arviz.stats.diagnostics import _ess_bulk

@@ -3,7 +3,7 @@ import typing
 import numpy as np
 import dask.array as da
 
-from .convergence import AbsStrategy, ThresholdType
+from .convergence import AbsStrategy, MagnitudeRelation
 
 # TODO: Add docs
 
@@ -43,8 +43,8 @@ class MaxArchangeStrategy(AbsStrategy):
 
     @classmethod
     @property
-    def threshold_type(cls) -> ThresholdType:  # noqa
-        return ThresholdType.lower
+    def threshold_type(cls) -> MagnitudeRelation:  # noqa
+        return MagnitudeRelation.lower
 
     def compute(self, array: np.ndarray | da.Array) -> np.ndarray | da.Array:
         """Compute max_archange value

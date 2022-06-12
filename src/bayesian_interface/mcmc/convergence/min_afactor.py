@@ -2,7 +2,7 @@ import typing
 
 import numpy as np
 
-from .convergence import AbsStrategy, ThresholdType
+from .convergence import AbsStrategy, MagnitudeRelation
 import bayesian_interface.mcmc.autocorr.autocorrtime as iat
 import bayesian_interface.mcmc.autocorr.ensemble as iat_ens
 from .misc import check_dimension
@@ -30,8 +30,8 @@ class MinAfactorStrategy(AbsStrategy):
 
     @classmethod
     @property
-    def threshold_type(cls) -> ThresholdType:  # noqa
-        return ThresholdType.upper
+    def threshold_type(cls) -> MagnitudeRelation:  # noqa
+        return MagnitudeRelation.upper
 
     def compute(self, array: np.ndarray) -> np.ndarray:
 
