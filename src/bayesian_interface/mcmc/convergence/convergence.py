@@ -11,7 +11,6 @@ from ...logger import Logger
 
 logger = Logger("mcmc.convergence")
 
-# TODO: Add docs
 # TODO: Add logging
 
 
@@ -74,7 +73,7 @@ class MagnitudeRelation(Enum):
 
 def check_relation(
     relation_type: MagnitudeRelation, a: float | np.ndarray, b: float
-) -> bool:
+) -> bool | np.ndarray:
     """check magnitude relation between array and float or float and float
     :param relation_type: magnitude relation type
     :param a: array or float (ex. calculated criterion value)
