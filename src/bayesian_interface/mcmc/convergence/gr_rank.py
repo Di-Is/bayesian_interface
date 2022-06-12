@@ -8,15 +8,9 @@ from .convergence import AbsStrategy, MagnitudeRelation
 
 
 class GRRank(AbsStrategy):
-    def __init__(
-        self,
-        threshold: float = 1.01,
-    ) -> None:
-        self._threshold = threshold
+    def __init__(self, threshold: float = 1.01) -> None:
 
-    @property
-    def threshold(self) -> float:
-        return self._threshold
+        super().__init__(threshold)
 
     @property
     def algorithm_name(self) -> str:
@@ -47,7 +41,7 @@ class GRRank(AbsStrategy):
     def drop_chain(self) -> bool:
         return True
 
-    def compute(self, array: np.ndarray) -> np.ndarray:
+    def compute(self, array: np.ndarray) -> float:
 
         match array:
             case np.ndarray():
@@ -60,7 +54,7 @@ class GRRank(AbsStrategy):
         return result
 
     @staticmethod
-    def _calc_criterion(array: np.ndarray) -> np.ndarray:
+    def _calc_criterion(array: np.ndarray) -> float:
         from arviz.stats.diagnostics import _rhat_rank
         from arviz.utils import Numba
 

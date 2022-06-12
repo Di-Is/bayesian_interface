@@ -8,12 +8,8 @@ from .convergence import AbsStrategy, MagnitudeRelation
 
 class ESSIATStrategy(AbsStrategy):
     def __init__(self, threshold: typing.Optional[float] = 100000, *args) -> None:
-        self._threshold = threshold
+        super().__init__(threshold)
         self._external_lengths = args
-
-    @property
-    def threshold(self) -> float:
-        return self._threshold
 
     @property
     def expected_dim(self) -> int | tuple[int, ...]:
@@ -45,7 +41,7 @@ class ESSIATStrategy(AbsStrategy):
     def threshold_type(cls) -> MagnitudeRelation:  # noqa
         return MagnitudeRelation.upper
 
-    def compute(self, array: np.ndarray) -> np.ndarray:
+    def compute(self, array: np.ndarray) -> float:
         nchain, nsteps = array.shape[:2]
         if self._external_lengths is None:
             extra = 1

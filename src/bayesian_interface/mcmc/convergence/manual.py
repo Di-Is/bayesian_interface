@@ -10,15 +10,8 @@ from .misc import check_dimension
 
 
 class Manual(AbsStrategy):
-    def __init__(
-        self,
-        threshold: float = 1000.0,
-    ) -> None:
-        self._threshold = threshold
-
-    @property
-    def threshold(self) -> float:
-        return self._threshold
+    def __init__(self, threshold: float = 1000.0) -> None:
+        super().__init__(threshold)
 
     @classmethod
     @property
@@ -35,7 +28,7 @@ class Manual(AbsStrategy):
         return 1
 
     @classmethod
-    def compute(cls, array: np.ndarray) -> np.ndarray:
+    def compute(cls, array: np.ndarray) -> float:
         match array:
             case np.ndarray():
                 result = len(array)

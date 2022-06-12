@@ -10,15 +10,8 @@ from .convergence import AbsStrategy, MagnitudeRelation
 
 
 class StableGRMaxEigen(AbsStrategy):
-    def __init__(
-        self,
-        threshold: float = 1.01,
-    ) -> None:
-        self._threshold = threshold
-
-    @property
-    def threshold(self) -> float:
-        return self._threshold
+    def __init__(self, threshold: float = 1.01) -> None:
+        super().__init__(threshold)
 
     @property
     def algorithm_name(cls) -> str:  # noqa

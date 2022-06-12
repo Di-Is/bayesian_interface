@@ -10,11 +10,7 @@ from .convergence import AbsStrategy, MagnitudeRelation
 
 class MaxArchangeStrategy(AbsStrategy):
     def __init__(self, threshold: float = 0.03) -> None:
-        self._threshold = threshold
-
-    @property
-    def threshold(self) -> float:
-        return self._threshold
+        super().__init__(threshold)
 
     @property
     def need_dim(self) -> bool:
@@ -46,7 +42,7 @@ class MaxArchangeStrategy(AbsStrategy):
     def threshold_type(cls) -> MagnitudeRelation:  # noqa
         return MagnitudeRelation.lower
 
-    def compute(self, array: np.ndarray | da.Array) -> np.ndarray | da.Array:
+    def compute(self, array: np.ndarray | da.Array) -> float:
         """Compute max_archange value
         :param array: iat_array
         :return:
