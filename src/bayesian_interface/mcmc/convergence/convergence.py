@@ -9,7 +9,7 @@ import bayesian_interface.data_structure as bay_data
 from .pre_process import AbsPreprocess
 from ...logger import Logger
 
-logger = Logger(__name__)
+logger = Logger("mcmc.convergence")
 
 # TODO: Add docs
 # TODO: Add logging
@@ -23,21 +23,19 @@ class ConvergenceResult(bay_data.AbsData):
     # convergence flag
     convergence: bay_data.AbsAttr
     # The number of converge step
-    # convergence_step: bay_data.AbsAttr
+    convergence_step: bay_data.AbsAttr
     # The Threshold convergence criterion
     threshold: bay_data.AbsAttr
     # Threshold Type
     threshold_type: bay_data.AbsAttr  # upper or lower equal
-    # Number of Chain ID for check convergence
-    #  chain_ids: bay_data.AbsAttr
-
     # The checked step
     steps: bay_data.AbsArray
     # The checked criterion values corresponding steps
     criterion_values: bay_data.AbsArray
+    # convergence flags
     convergences: bay_data.AbsArray
-
-    # convergence_steps: bay_data.AbsArray
+    # The number of converge steps
+    convergence_steps: bay_data.AbsArray
 
     @classmethod
     def memory_dflt_par(cls):
