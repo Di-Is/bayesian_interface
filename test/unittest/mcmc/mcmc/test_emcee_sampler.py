@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from bayesian_interface.mcmc.mcmc.emcee_sampler import EmceeStrategy
+from bayesian_interface.mcmc.mcmc.emcee_sampler import EmceeEnsemble
 from bayesian_interface.data_structure.chain import SamplingResultFactory
 
 
@@ -18,11 +18,11 @@ class TestEnsembleSampler(unittest.TestCase):
             return -0.5 * np.sum(x * p**2)
 
         init_state = np.random.randn(nwalkers, ndim)
-        sampler = EmceeStrategy(nwalkers, ndim, lnprob)
+        sampler = EmceeEnsemble(nwalkers, ndim, lnprob)
         chain = sampler.sampling(init_state, nsteps)
         self.assertEqual(chain.shape, (nsteps, nwalkers, ndim))
 
-        sampler = EmceeStrategy(nwalkers, ndim, lnprob)
+        sampler = EmceeEnsemble(nwalkers, ndim, lnprob)
         chain = sampler.sampling(chain[0], nsteps)
         self.assertEqual(chain.shape, (nsteps, nwalkers, ndim))
 

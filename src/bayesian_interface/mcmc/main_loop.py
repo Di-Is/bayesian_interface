@@ -6,7 +6,7 @@ import numpy as np
 import numba as nb
 
 from bayesian_interface.mcmc.mcmc.mcmc import MCMCSampler
-from bayesian_interface.mcmc.mcmc.emcee_sampler import EmceeStrategy
+from bayesian_interface.mcmc.mcmc.emcee_sampler import EmceeEnsemble
 from bayesian_interface.mcmc.mcmc.zeus_sampler import ZeusStrategy
 
 from bayesian_interface.mcmc.convergence.convergence import Convergence
@@ -39,7 +39,7 @@ def main():
         diff = p - mu
         return -0.5 * np.dot(diff, np.linalg.solve(cov, diff))
 
-    sampler_strategy = EmceeStrategy(
+    sampler_strategy = EmceeEnsemble(
         nwalkers, ndim, lnprob, moves=[(emcee.moves.KDEMove(), 1)]
     )
     sampler = MCMCSampler(sampler_strategy, save_step=1000)

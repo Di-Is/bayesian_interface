@@ -1,20 +1,26 @@
 import typing
 
 import numpy as np
+import dask.array as da
+from dask.delayed import Delayed
 
 from .convergence import AbsStrategy, ThresholdType
 
 
-class Strategy(AbsStrategy):
-    @classmethod
-    @property
-    def threshold_default(cls) -> float:  # noqa
-        return 1.01
+class GRRank(AbsStrategy):
+    def __init__(
+        self,
+        threshold: float = 1.01,
+    ) -> None:
+        self._threshold = threshold
 
-    @classmethod
     @property
-    def algorithm_name(cls) -> str:  # noqa
-        return "Gelman-Rubin rank indicator"
+    def threshold(self) -> float:
+        return self._threshold
+
+    @property
+    def algorithm_name(self) -> str:
+        return "GR rank"
 
     @classmethod
     @property
@@ -23,32 +29,41 @@ class Strategy(AbsStrategy):
 
     @property
     def expected_dim(self) -> int | tuple[int, ...]:
-        return 3
+        return 2
 
-    @classmethod
-    def compute(cls, array: np.ndarray) -> np.ndarray:
+    @property
+    def need_dim(self) -> bool:
+        return False
 
-        import dask.array as da
+    @property
+    def need_chain(self) -> bool:
+        return True
 
-        darr = da.from_array(array, chunks=(array.shape[0], array.shape[1], 1))
-        res = darr.map_blocks(
-            cls._calc_gr, drop_axis=[0, 1], dtype=np.float32, meta=np.array([])
-        )
-        return res.compute()
+    @property
+    def drop_dim(self) -> bool:
+        return False
+
+    @property
+    def drop_chain(self) -> bool:
+        return True
+
+    def compute(self, array: np.ndarray) -> np.ndarray:
+
+        match array:
+            case np.ndarray():
+                result = self._calc_criterion(array)
+            case da.Array() | Delayed():
+                result = self._calc_criterion(array)
+            case _:
+                raise TypeError(f"input type {type(array)} is invalid.")
+
+        return result
 
     @staticmethod
-    def _calc_gr(array: np.ndarray) -> np.ndarray:
+    def _calc_criterion(array: np.ndarray) -> np.ndarray:
         from arviz.stats.diagnostics import _rhat_rank
         from arviz.utils import Numba
 
         Numba.enable_numba()
-        if array.ndim == 3:
-            result = []
-            for i in range(array.shape[-1]):
-                result.append(_rhat_rank(array[..., i]))
-        elif array.ndim == 2:
-            result = _rhat_rank(array)
-        else:
-            raise ValueError
-
-        return np.asarray(result)
+        result = _rhat_rank(array)
+        return result

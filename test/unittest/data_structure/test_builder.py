@@ -12,7 +12,7 @@ class TestDirector(unittest.TestCase):
             aa: parts.AbsAttr
             bb: parts.AbsArray
 
-        inst = Director.create(
+        inst = Director.merge_param(
             AA,
             dict(
                 aa=Param(kwargs={}, save_type=SaveType.memory),
@@ -28,7 +28,7 @@ class TestDirector(unittest.TestCase):
             cc: parts.AbsAttr
 
         with self.assertRaises(TypeError):
-            inst = Director.create(
+            inst = Director.merge_param(
                 AA,
                 dict(
                     aa=Param(kwargs={}, save_type=SaveType.memory),
@@ -43,7 +43,7 @@ class TestDirector(unittest.TestCase):
             bb: parts.AbsArray
 
         with self.assertRaises(ValueError):
-            inst = Director.create(
+            inst = Director.merge_param(
                 AA,
                 dict(
                     aa=Param(kwargs={}, save_type=SaveType.memory),
@@ -59,7 +59,7 @@ class TestDirector(unittest.TestCase):
             bb: int
 
         with self.assertRaises(TypeError):
-            inst = Director.create(
+            inst = Director.merge_param(
                 AA,
                 dict(
                     aa=Param(kwargs={}, save_type=SaveType.memory),

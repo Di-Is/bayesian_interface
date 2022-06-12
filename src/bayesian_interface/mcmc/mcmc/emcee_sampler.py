@@ -14,7 +14,7 @@ def __getstate__(self):
 emcee.EnsembleSampler.__getstate__ = __getstate__
 
 
-class EmceeStrategy(AbsStrategy):
+class EmceeEnsemble(AbsStrategy):
     """Adapter class for emcee.EnsembleSampler"""
 
     def __init__(
@@ -41,7 +41,9 @@ class EmceeStrategy(AbsStrategy):
             **kwargs,
         )
 
-    def method_name(self) -> str:
+    @classmethod
+    @property
+    def method_name(cls) -> str:
         return "/mcmc/emcee/ensemble_sampler"
 
     def sampling(

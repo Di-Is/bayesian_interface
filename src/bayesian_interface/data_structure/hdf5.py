@@ -91,7 +91,10 @@ class Array(parts.AbsArray):
         else:
             f = h5py.File(self.fpath, "r")
             g = f[self.gpath]
-            return WrapperArray(g[self.name], f)
+            if idx is None:
+                return g[self.name][:]
+            else:
+                return g[self.name][idx]
 
     @parts.init_check
     @make_group
@@ -143,6 +146,11 @@ class Array(parts.AbsArray):
             g = f[self.gpath]
             return g[self.name].shape
 
+    def __getitem__(self, item):
+        with h5py.File(self.fpath, "r") as f:
+            g = f[self.gpath]
+            return g[self.name][item]
+
 
 class AttrFactory(parts.AttrFactory):
     @classmethod
@@ -156,21 +164,23 @@ class ArrayFactory(parts.AttrFactory):
         return Array
 
 
-class WrapperArray:
-    def __init__(self, array, f):
-        self._array = array
-        self._f = f
-
-    def __array__(self, *args, **kwargs):
-        return self._array.__array__(*args, **kwargs)
-
-    def __getitem__(self, item):
-        return self._array.__getitem__(item)
-
-    def __del__(self):
-        self._f.close()
-        del self._f
-        del self._array
-
-    def close(self):
-        self._f.close()
+#
+#
+# class WrapperArray:
+#     def __init__(self, array, f):
+#         self._array = array
+#         self._f = f
+#
+#     def __array__(self, *args, **kwargs):
+#         return self._array.__array__(*args, **kwargs)
+#
+#     def __getitem__(self, item):
+#         return self._array.__getitem__(item)
+#
+#     def __del__(self):
+#         self._f.close()
+#         del self._f
+#         del self._array
+#
+#     def close(self):
+#         self._f.close()

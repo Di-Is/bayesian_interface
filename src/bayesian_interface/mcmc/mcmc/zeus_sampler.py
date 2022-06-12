@@ -26,7 +26,9 @@ class ZeusStrategy(AbsStrategy):
         super().__init__()
         self._sampler = zeus.EnsembleSampler(nwalkers, ndim, lnprob, **kwargs)
 
-    def method_name(self) -> str:
+    @classmethod
+    @property
+    def method_name(cls) -> str:
         return "/mcmc/zeus/ensemble_sampler"
 
     def sampling(

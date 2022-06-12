@@ -60,13 +60,10 @@ class _DummyProgressBar(object):
         pass
 
 
-def get_progress_bar(display=False, *args, **kwargs):
+def get_progress_bar(display: bool = False, *args, **kwargs):
     """プログレスバーのオブジェクトを取得する"""
     if display:
-        if display is True:
-            pbar = tqdm.tqdm(*args, **kwargs)
-        else:
-            pbar = getattr(tqdm, "tqdm_" + display)(*args, **kwargs)
+        pbar = tqdm.tqdm(*args, **kwargs)
     else:
         pbar = _DummyProgressBar(*args, **kwargs)
     return pbar

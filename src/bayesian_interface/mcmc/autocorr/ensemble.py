@@ -4,6 +4,7 @@ from abc import ABCMeta, abstractmethod
 
 import numpy as np
 import dask.array as da
+from dask.delayed import delayed, Delayed
 
 from .misc import check_dimension
 from .autocorrtime import AbsStrategy
@@ -14,122 +15,180 @@ class StrategyBase(AbsStrategy):
     def __init__(self, strategy: normal.StrategyBase):
         self._strategy = strategy
 
-    def compute(self, array: np.ndarray) -> np.ndarray:
+    def compute(self, array: np.ndarray) -> np.ndarray | da.Array:
         raise NotImplementedError
 
     @property
     def method_name(self) -> str:
         raise NotImplementedError
 
+    @property
+    def need_chain(self) -> bool:
+        raise NotImplementedError
 
-import time
+    @property
+    def need_dim(self) -> bool:
+        raise NotImplementedError
+
+    @property
+    def drop_chain(self) -> bool:
+        raise NotImplementedError
+
+    @property
+    def drop_dim(self) -> bool:
+        raise NotImplementedError
 
 
-class StrategyFlattenCalc(StrategyBase):
-    expected_dim = 3
+class FlattenCalcStrategy(StrategyBase):
+    expected_dim = 2
 
     def __init__(self, strategy: normal.StrategyBase):
         super().__init__(strategy)
-        self._dask = False
 
     def compute(self, array: np.ndarray | da.Array) -> np.ndarray:
         check_dimension(array, self.expected_dim)
+        match array:
+            case np.ndarray() | da.Array() | Delayed():
+                result = self._strategy.compute(array.transpose([1, 0]).reshape(-1))
+            case _:
+                raise TypeError(f"input type {type(array)} is invalid.")
+        return result
 
-        if self._dask or isinstance(array, da.Array):
-            if isinstance(array, da.Array):
-                darr = array
-                # darr = darr.rechunk((array.shape[0], array.shape[1], 1))
-            else:
-                chunk = (array.shape[0], array.shape[1], 1)
-                darr = da.from_array(array)
-        else:
-            darr = array
-
-        iats = self._strategy.compute(
-            darr.transpose([1, 0, 2]).reshape(-1, array.shape[-1])
-        )
-        return iats
-
+    @classmethod
     @property
-    def method_name(self) -> str:
-        name = f"Ensemble: {'FlattenCalc'}, Normal: {self._strategy.method_name}"
+    def method_name(cls) -> str:  # noqa
+        name = f"Ensemble: {'FlattenCalc'}"
         return name
 
+    @property
+    def need_chain(self) -> bool:
+        return False
 
-class StrategyMeanCalc(StrategyBase):
-    expected_dim = 3
+    @property
+    def need_dim(self) -> bool:
+        return False
 
-    def compute(self, array: np.ndarray | da.Array) -> np.ndarray:
+    @property
+    def drop_chain(self) -> bool:
+        return False
+
+    @property
+    def drop_dim(self) -> bool:
+        return False
+
+
+class MeanCalcStrategy(StrategyBase):
+    expected_dim = 2
+
+    def __init__(self, strategy: normal.StrategyBase):
+        super().__init__(strategy)
+
+    def compute(self, array: np.ndarray | da.Array) -> np.ndarray | da.Array:
         check_dimension(array, self.expected_dim)
+        match array:
+            case np.ndarray() | da.Array() | Delayed():
+                result = self._strategy.compute(array.mean(axis=1))
+            case _:
+                raise TypeError(f"input type {type(array)} is invalid.")
+        return result
 
-        if isinstance(array, da.Array):
-            darr = array
-            darr = darr.rechunk((array.shape[0], 1, 1))
-        else:
-            darr = da.from_array(array, chunks=(array.shape[0], 1, 1))
-        iats = self._strategy.compute(darr.mean(axis=1))
-        return iats
+    @classmethod
+    @property
+    def method_name(cls) -> str:  # noqa
+        return f"Ensemble: {'MeanCalc'}"
 
     @property
-    def method_name(self) -> str:
-        name = f"Ensemble: {'MeanCalc'}, Normal: {self._strategy.method_name}"
+    def need_chain(self) -> bool:
+        return False
+
+    @property
+    def need_dim(self) -> bool:
+        return False
+
+    @property
+    def drop_chain(self) -> bool:
+        return False
+
+    @property
+    def drop_dim(self) -> bool:
+        return False
+
+
+class CalcMeanStrategy(StrategyBase):
+    expected_dim = 2
+
+    def __init__(self, strategy: normal.StrategyBase):
+        super().__init__(strategy)
+
+    def compute(self, array: np.ndarray | da.Array) -> np.ndarray | da.Array:
+
+        match array:
+            case np.ndarray():
+                result = np.apply_along_axis(self._strategy.compute, 0, array).mean()
+            case da.Array() | Delayed():
+                result = da.apply_along_axis(self._strategy.compute, 0, array).mean()
+            case _:
+                raise TypeError(f"input type {type(array)} is invalid.")
+
+        return result
+
+    @classmethod
+    @property
+    def method_name(cls) -> str:  # noqa
+        name = f"Ensemble: {'CalcMean'}"
         return name
 
+    @property
+    def need_chain(self) -> bool:
+        return False
 
-class StrategyCalcMean(StrategyBase):
-    expected_dim = 3
+    @property
+    def need_dim(self) -> bool:
+        return False
 
-    def compute(self, array: np.ndarray | da.Array) -> np.ndarray:
+    @property
+    def drop_chain(self) -> bool:
+        return False
+
+    @property
+    def drop_dim(self) -> bool:
+        return False
+
+
+class AssignmentStrategy(StrategyBase):
+    expected_dim = 2
+
+    def compute(self, array: np.ndarray | da.Array) -> np.ndarray | da.Array:
         check_dimension(array, self.expected_dim)
+        result = self._strategy.compute(array)
+        return result
 
-        if isinstance(array, da.Array):
-            darr = array
-            darr = darr.rechunk((array.shape[0], 1, 1))
-        else:
-            darr = da.from_array(array, chunks=(array.shape[0], 1, 1))
-
-        res = darr.map_blocks(
-            self._calc,
-            drop_axis=0,
-            #   chunks=(array.shape[0], 1, 1),
-            dtype=array.dtype,
-            meta=np.array([]),
-        )
-        # iats = self._strategy.compute(darr)
-        iats = res.mean(axis=0).compute()
-        return iats
-
-    def _calc(self, array: np.ndarray):
-        if array.ndim == 3:
-            result = []
-            result.append(self._strategy.compute(array[..., 0, :]))
-        else:
-            raise ValueError
-        return np.asarray(result, dtype=array.dtype)
-
+    @classmethod
     @property
-    def method_name(self) -> str:
-        name = f"Ensemble: {'CalcMean'}, Normal: {self._strategy.method_name}"
+    def method_name(cls) -> str:  # noqa
+        name = f"Ensemble: {'Assignment'}"
         return name
 
-
-class StrategyAssignment(StrategyBase):
-    expected_dim = 3
-
-    def compute(self, array: np.ndarray | da.Array) -> np.ndarray:
-        check_dimension(array, self.expected_dim)
-
-        if isinstance(array, da.Array):
-            darr = array
-            darr = darr.rechunk((array.shape[0], array.shape[1], 1))
-        else:
-            darr = da.from_array(array, chunks=(array.shape[0], array.shape[1], 1))
-
-        iats = self._strategy.compute(darr)
-
-        return iats
+    @property
+    def need_chain(self) -> bool:
+        return False
 
     @property
-    def method_name(self) -> str:
-        name = f"Ensemble: {'Assignment'}, Normal: {self._strategy.method_name}"
-        return name
+    def need_dim(self) -> bool:
+        return False
+
+    @property
+    def drop_chain(self) -> bool:
+        return False
+
+    @property
+    def drop_dim(self) -> bool:
+        return False
+
+
+ENSEMBLE_IAT_METHODS = (
+    FlattenCalcStrategy.method_name,
+    MeanCalcStrategy.method_name,
+    CalcMeanStrategy.method_name,
+    AssignmentStrategy.method_name,
+)

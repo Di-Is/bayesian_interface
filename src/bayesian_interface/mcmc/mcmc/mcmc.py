@@ -3,11 +3,34 @@ from abc import ABCMeta, abstractmethod
 
 import numpy as np
 
-from bayesian_interface.data_structure.chain import (
-    SamplingResult,
-    SamplingResultFactory,
-)
+import bayesian_interface.data_structure as bay_data
 from ...logger import get_progress_bar
+
+
+class SamplingResult(bay_data.AbsData):
+    chain_id: bay_data.AbsAttr
+    sampler_name: bay_data.AbsAttr
+    chain: bay_data.AbsArray
+
+    @classmethod
+    def memory_dflt_par(cls):
+        return {name: {} for name in cls.get_attr_names() + cls.get_array_names()}
+
+    @classmethod
+    def hdf5_dflt_par(cls):
+        attr_cfg = {"gpath": "mcmc"}
+        array_cfg = attr_cfg | {"compression": "gzip", "compression_opts": 9}
+        res = {name: attr_cfg for name in cls.get_attr_names()}
+        res |= {name: array_cfg for name in cls.get_array_names()}
+        return res
+
+    @classmethod
+    def netcdf4_dflt_par(cls):
+        attr_cfg = {"gpath": "mcmc"}
+        array_cfg = attr_cfg | {"compression": "gzip", "compression_opts": 9}
+        res = {name: attr_cfg for name in cls.get_attr_names()}
+        res |= {name: array_cfg for name in cls.get_array_names()}
+        return res
 
 
 class AbsStrategy(metaclass=ABCMeta):
@@ -34,7 +57,7 @@ class MCMCSampler:
     ):
         self._strategy = strategy
         if data is None:
-            data = SamplingResultFactory.create()
+            data = SamplingResult()
         self._data = data
         self._chain_id = chain_id
         self._dtype = dtype
@@ -43,15 +66,6 @@ class MCMCSampler:
     def sampling(
         self, initial_state: np.ndarray, nsteps: int, progress: bool = True
     ) -> SamplingResult:
-
-        if not self.check_initialized():
-            self._data.sampler_name.set(self._strategy.method_name)
-            self._data.chain_id.set(self._chain_id)
-            self._data.chain.create(
-                shape=(0,) + initial_state.shape,
-                dtype=self._dtype,
-                maxshape=(None,) + initial_state.shape,
-            )
 
         for step in get_progress_bar(
             iterable=split_nsteps(nsteps, self._save_step),
@@ -62,8 +76,20 @@ class MCMCSampler:
             leave=False,
         ):
             chain = self._strategy.sampling(initial_state, step)
+
+            if not self.check_initialized():
+                self._data.sampler_name.set(self._strategy.method_name)
+                self._data.chain_id.set(self._chain_id)
+                self._data.chain.create(
+                    shape=(0,) + chain.shape[1:],
+                    dtype=self._dtype,
+                    maxshape=(None,) + chain.shape[1:],
+                )
             self._data.chain.append(chain, axis=0)
-            initial_state = chain[0]
+
+            # initial_state = deepcopy(chain[-1])
+            initial_state = chain[-1]
+
         return self._data
 
     def check_initialized(self) -> bool:

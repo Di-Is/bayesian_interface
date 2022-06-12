@@ -1,8 +1,13 @@
+import typing
+from dataclasses import fields, dataclass
 from typing import Any, Optional
 from functools import wraps
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
+
+from bayesian_interface.data_structure.const import SaveType
+from bayesian_interface.data_structure.misc import dynamically_load_class
 
 
 def init_check(func):
@@ -30,6 +35,12 @@ class AbsAttr(metaclass=ABCMeta):
     def has(self) -> bool:
         pass
 
+    def __repr__(self):
+        if self.has():
+            return str(self.get())
+        else:
+            return "Not init"
+
 
 types = int | float | str | complex | np.ndarray
 Index = int | slice | tuple[int | slice, ...]
@@ -47,7 +58,7 @@ class AbsArray(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get(self, idx: Optional[Index] = None) -> types:
+    def get(self, idx: Optional[Index] = None, copy: bool = True) -> types:
         """配列から値を取り出す
         :return:
         """
@@ -95,8 +106,19 @@ class AbsArray(metaclass=ABCMeta):
                 add = 1
             shape.append(old + add if i == axis else old)
             indices.append(slice(old, None) if i == axis else slice(None))
+
         self.resize(tuple(shape))
         self.set(arr, tuple(indices))
+
+    @abstractmethod
+    def __getitem__(self, item):
+        pass
+
+    def __repr__(self):
+        if self.has():
+            return f"shape: {self.shape}"
+        else:
+            return "Not init"
 
 
 class AttrFactory(metaclass=ABCMeta):
@@ -121,3 +143,82 @@ class ArrayFactory(metaclass=ABCMeta):
     @abstractmethod
     def get_dataclass(cls) -> AbsArray.__class__:
         pass
+
+
+@dataclass
+class AbsData(metaclass=ABCMeta):
+    @abstractmethod
+    def memory_dflt_par(self):
+        pass
+
+    @abstractmethod
+    def hdf5_dflt_par(self):
+        pass
+
+    @abstractmethod
+    def netcdf4_dflt_par(self):
+        pass
+
+    def __init__(
+        self,
+        save_type: SaveType = SaveType.memory,
+        each: typing.Optional[dict] = None,
+        **common,
+    ):
+        match save_type:
+            case SaveType.memory:
+                dct = self.memory_dflt_par()
+            case SaveType.hdf5:
+                dct = self.hdf5_dflt_par()
+            case SaveType.netcdf:
+                dct = self.netcdf4_dflt_par()
+            case _:
+                raise ValueError
+        each = self.merge_param(dct, each, **common)
+        for var_info in fields(self):
+            name = var_info.name
+            save_type_name = str(save_type).replace("SaveType.", "")
+            module = f"bayesian_interface.data_structure.{save_type_name}"
+            if var_info.type is AbsAttr:
+                factory = dynamically_load_class(module, "AttrFactory")
+            elif var_info.type is AbsArray:
+                factory = dynamically_load_class(module, "ArrayFactory")
+            else:
+                raise TypeError(
+                    f"The annotation {var_info.type} of variable {name} is an invalid."
+                )
+            setattr(self, name, factory.create(name=name, **each[name]))
+
+    def __new__(cls, *args, **kwargs):
+        dataclass(cls, init=False)  # noqa
+        return super().__new__(cls)
+
+    @classmethod
+    def merge_param(
+        cls,
+        default_param: dict,
+        each: typing.Optional[dict[str, dict]] = None,
+        **common,
+    ) -> dict:
+        common = {} if common is None else common.copy()
+        each = {} if each is None else each.copy()
+
+        names = list(default_param.keys())
+        result = {}
+        for name in names:
+            v = default_param[name]
+            if name in each:
+                each[name] = v | each[name]
+            else:
+                each[name] = v.copy()
+            result[name] = common | each[name]
+
+        return result
+
+    @classmethod
+    def get_attr_names(cls):
+        return tuple(var.name for var in fields(cls) if var.type is AbsAttr)
+
+    @classmethod
+    def get_array_names(cls):
+        return tuple(var.name for var in fields(cls) if var.type is AbsArray)

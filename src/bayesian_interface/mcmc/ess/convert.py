@@ -19,7 +19,7 @@ class Convert(AbsFactory):
 
     @property
     def expected_dim(self) -> int:
-        return 2
+        return (2, 3)
 
     def compute(self, array: np.ndarray) -> np.ndarray:
 
@@ -31,8 +31,12 @@ class Convert(AbsFactory):
         # res = darr.map_blocks(
         #     self._calc, drop_axis=[0], dtype=array.dtype, meta=np.array([])
         # )
+        if array.ndim == 2:
+            nsteps = len(array)
+        else:
+            nsteps = array.shape[1]
 
-        n = np.arange(len(array)) * math.prod(self._extra_dim_length)
+        n = np.arange(nsteps) * math.prod(self._extra_dim_length)
         n = np.atleast_2d(n).T
         res = n / darr
         return res.compute()

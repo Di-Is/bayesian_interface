@@ -1,21 +1,25 @@
 import typing
 
 import numpy as np
+import dask.array as da
+from dask.delayed import Delayed
 
 from .convergence import AbsStrategy, ThresholdType
 from .misc import check_dimension
 
 
-class Strategy(AbsStrategy):
-    @classmethod
+class GR(AbsStrategy):
+    def __init__(self, threshold: float = 1.01):
+        self._threshold = threshold
+
     @property
-    def threshold_default(cls) -> float:  # noqa
-        return 1.01
+    def threshold(self) -> float:
+        return self._threshold
 
     @classmethod
     @property
     def algorithm_name(cls) -> str:  # noqa
-        return "traditional Gelman-Rubin indicator"
+        return "GR"
 
     @classmethod
     @property
@@ -26,31 +30,38 @@ class Strategy(AbsStrategy):
     def expected_dim(self) -> int | tuple[int, ...]:
         return 3
 
-    @classmethod
-    def compute(cls, array: np.ndarray) -> np.ndarray:
+    def compute(self, array: np.ndarray | da.Array) -> np.ndarray | da.Array:
 
-        import dask.array as da
-
-        darr = da.from_array(array, chunks=(array.shape[0], array.shape[1], 1))
-        res = darr.map_blocks(
-            cls._calc_gr, drop_axis=[0, 1], dtype=array.dtype, meta=np.array([])
-        )
-        return res.compute()
+        match array:
+            case np.ndarray():
+                result = self._calc_criterion(array)
+            case da.Array() | Delayed():
+                result = self._calc_criterion(array)
+            case _:
+                raise TypeError(f"input type {type(array)} is invalid.")
+        return result
 
     @staticmethod
-    def _calc_gr(array: np.ndarray) -> np.ndarray:
+    def _calc_criterion(array: np.ndarray) -> np.ndarray:
         from arviz.stats.diagnostics import _rhat_identity
         from arviz.utils import Numba
 
         Numba.enable_numba()
+        result = _rhat_identity(array)
+        return result
 
-        if array.ndim == 3:
-            result = []
-            for i in range(array.shape[-1]):
-                result.append(_rhat_identity(array[..., i]))
-        elif array.ndim == 2:
-            result = _rhat_identity(array)
-        else:
-            raise ValueError
+    @property
+    def need_dim(self) -> bool:
+        return False
 
-        return np.asarray(result)
+    @property
+    def need_chain(self) -> bool:
+        return True
+
+    @property
+    def drop_dim(self) -> bool:
+        return False
+
+    @property
+    def drop_chain(self) -> bool:
+        return True

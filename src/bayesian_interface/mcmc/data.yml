@@ -1,0 +1,13 @@
+__attr: &attr
+  memory:
+  hdf5:
+    fpath:
+    gpath:
+  netcdf:
+    fpath: None
+__array: &array
+  memory:
+
+mcmc:
+  chain_id:
+    <<: *attr

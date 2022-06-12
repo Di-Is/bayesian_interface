@@ -1,0 +1,29 @@
+__attr: &attr
+  memory:
+  hdf5:
+    fpath:
+    gpath:
+  netcdf:
+    fpath:
+    gpath:
+
+__array: &array
+  memory:
+  hdf5:
+    fpath:
+    gpath:
+    compression: 'gzip'
+    compression_opts: 9
+  netcdf:
+    fpath:
+    gpath:
+    compression: 'gzip'
+    compression_opts: 9
+
+mcmc:
+  chain_id: *attr
+  sampler_name: *attr
+  chain: *array
+convergence:
+  steps: *array
+  criterion_values: *array

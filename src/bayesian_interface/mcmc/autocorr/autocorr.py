@@ -1,6 +1,8 @@
-import time
+import warnings
 
 import numpy as np
+
+warnings.simplefilter("ignore")
 
 
 def next_pow_two(n):
@@ -23,13 +25,13 @@ def calc_acf(array: np.ndarray, norm: bool = True):
 
 from scipy.fft import fft, ifft
 
-
-def calc_acf(array, norm=True):
-    n = next_pow_two(len(array))
-    f = fft(array - np.mean(array), n=2 * n)
-    acf = ifft(f * np.conjugate(f))[: len(array)].real
-    acf /= 4 * n
-    # Normalize
-    if norm:
-        acf /= acf[0]
-    return acf
+#
+# def calc_acf(array, norm=True):
+#     n = next_pow_two(len(array))
+#     f = fft(array - np.mean(array), n=2 * n)
+#     acf = ifft(f * np.conjugate(f))[: len(array)].real
+#     acf /= 4 * n
+#     # Normalize
+#     if norm:
+#         acf /= acf[0]
+#     return acf

@@ -23,7 +23,7 @@ class Attr(parts.AbsAttr):
 
 
 class Array(parts.AbsArray):
-    def __init__(self, name: str, **kwargs) -> None:
+    def __init__(self, name: str, gpath=None, **kwargs) -> None:
         self.name = name
         self.kwargs = kwargs
         self.value: Optional[np.ndarray] = None
@@ -64,7 +64,12 @@ class Array(parts.AbsArray):
 
     @parts.init_check
     def resize(self, shape: tuple[int, ...]):
-        self.value = np.resize(self.value, shape)
+        value_new = np.empty(shape, dtype=self.value.dtype)
+        idx = tuple(slice(i) for i in self.shape)
+        value_new[idx] = self.value[:]
+        self.value = value_new
+
+    #  self.value = np.resize(self.value, shape)
 
     @property
     def ndim(self) -> int:
@@ -73,6 +78,9 @@ class Array(parts.AbsArray):
     @property
     def shape(self) -> tuple[int, ...]:
         return self.value.shape
+
+    def __getitem__(self, item):
+        return self.value[item]
 
 
 class AttrFactory(parts.AttrFactory):

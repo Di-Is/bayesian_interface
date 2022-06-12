@@ -3,24 +3,25 @@ import typing
 import numpy as np
 
 from .convergence import AbsStrategy, ThresholdType
-from bayesian_interface.mcmc.autocorr.autocorrtime import AutoCorrTime
+import bayesian_interface.mcmc.autocorr.autocorrtime as iat
+import bayesian_interface.mcmc.autocorr.ensemble as iat_ens
 from .misc import check_dimension
 
 
-class Strategy(AbsStrategy):
-    def __init__(self, iat_data):
-        if iat_data is None:
-            iat_data = 1
-        self._iat_data = iat_data
+class MinAfactorStrategy(AbsStrategy):
+    def __init__(
+        self, autocorr: iat.AutoCorrTime, threshold: typing.Optional[float] = 50
+    ) -> None:
+        self._autocorr = autocorr
+        self._threshold = threshold
 
-    @classmethod
     @property
-    def threshold_default(cls) -> float:  # noqa
-        return 50.0
+    def threshold(self) -> float:
+        return self._threshold
 
     @property
     def expected_dim(self) -> int | tuple[int, ...]:
-        return 3
+        return 3, 4
 
     @classmethod
     @property
@@ -32,27 +33,20 @@ class Strategy(AbsStrategy):
     def threshold_type(cls) -> ThresholdType:  # noqa
         return ThresholdType.upper
 
-    @classmethod
-    def compute(cls, array: np.ndarray) -> np.ndarray:
+    def compute(self, array: np.ndarray) -> np.ndarray:
 
-        import dask.array as da
-
-        darr = da.from_array(array, chunks=(array.shape[0], array.shape[1], 1))
-        res = darr.map_blocks(
-            cls._calc_gr, drop_axis=[0, 1], dtype=array.dtype, meta=np.array([])
-        )
-        return res.compute()
-
-    @staticmethod
-    def _calc_gr(array: np.ndarray) -> np.ndarray:
-
-        if array.ndim == 3:
-            result = []
-            for i in range(array.shape[-1]):
-                result.append(_rhat_identity(array[..., i]))
-        elif array.ndim == 2:
-            result = _rhat_identity(array)
+        nsteps = array.shape[1]
+        if array.ndim > 3:
+            extra = array.shape[2]
         else:
-            raise ValueError
+            extra = 1
 
-        return np.asarray(result)
+        if (
+            self._autocorr.data.steps.has()
+            and nsteps in self._autocorr.data.steps.get()
+        ):
+            idx = np.where(self._autocorr.data.steps == nsteps)[0][0]
+            iats = self._autocorr.data.iats.get(idx=(slice(None), idx))
+        else:
+            iats = self._autocorr.compute(array).iats.get(idx=(slice(None), -1))
+        return nsteps * extra / iats

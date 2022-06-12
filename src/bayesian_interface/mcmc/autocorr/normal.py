@@ -1,12 +1,15 @@
-import time
+import typing
 
 import numpy as np
 import dask.array as da
-from dask import config
+from dask.delayed import Delayed, delayed
 
 from .autocorr import calc_acf
 from .misc import check_dimension
 from .autocorrtime import AbsStrategy
+
+# TODO: Add docs
+# TODO: Separate inmpl funcs
 
 
 class StrategyBase(AbsStrategy):
@@ -17,102 +20,115 @@ class StrategyBase(AbsStrategy):
     def method_name(self) -> str:
         raise NotImplementedError
 
-
-class FFTStrategy(StrategyBase):
-    def __init__(self):
-        self._dask = False
-
-    def compute(self, array: np.ndarray | da.Array) -> float:
-        expected_dims = 2
-        check_dimension(array, expected_dims)
-
-        if self._dask or isinstance(array, da.Array):
-            return self.comp_dask(array)
-        else:
-            return self.comp_normal(array)
-
-    def comp_dask(self, array):
-        if not isinstance(array, da.Array):
-            darr = da.from_array(array, chunks=(array.shape[0], None))
-        else:
-            darr = array
-
-        res = darr.map_blocks(
-            self._calc, drop_axis=[0], dtype=array.dtype, meta=np.array([])
-        )
-
-        res = res.compute()
-        return res
-
-    def comp_normal(self, array):
-        return self._calc(array)
-
-    import psutil
-
-    @staticmethod
-    def _calc(array: np.ndarray) -> np.ndarray:
-        if array.ndim == 2:
-            result = []
-            for i in range(array.shape[-1]):
-                acf = calc_acf(array[..., i])
-                result.append(estimate_iat(acf))
-
-        elif array.ndim == 1:
-            acf = calc_acf(array)
-            result = [estimate_iat(acf)]
-        else:
-            raise ValueError
-        return np.asarray(result)
+    @property
+    def need_chain(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def method_name(self) -> str:
-        name = f"{'FFT'}"
+    def need_dim(self) -> bool:
+        raise NotImplementedError
+
+    @property
+    def drop_chain(self) -> bool:
+        raise NotImplementedError
+
+    @property
+    def drop_dim(self) -> bool:
+        raise NotImplementedError
+
+
+class FFTStrategy(StrategyBase):
+    @classmethod
+    @property
+    def expected_dim(cls) -> int:  # noqa
+        return 1
+
+    @property
+    def need_chain(self) -> bool:
+        return False
+
+    @property
+    def need_dim(self) -> bool:
+        return False
+
+    @property
+    def drop_chain(self) -> bool:
+        return False
+
+    @property
+    def drop_dim(self) -> bool:
+        return False
+
+    def compute(self, array: np.ndarray | da.Array) -> np.ndarray | da.Array:
+        match array:
+            case np.ndarray():
+                result = self._calc_iat(array)
+            case da.Array() | Delayed():
+                result = da.map_blocks(self._calc_iat, array)
+            case _:
+                raise TypeError(f"input type {type(array)} is invalid.")
+        return result
+
+    @staticmethod
+    def _calc_iat(array: np.ndarray) -> float:
+        """calculate integrated auto-correlation time
+        :param array: input array
+        :return: iat value
+        """
+        acf = calc_acf(array)
+        result = estimate_iat(acf)
+        return result
+
+    @classmethod
+    @property
+    def method_name(cls) -> str:  # noqa
+        name = f"FFT"
         return name
 
 
 class GPStrategy(StrategyBase):
-    def compute(self, array: np.ndarray | da.Array) -> np.ndarray:
-        expected_dims = (2, 3)
-        check_dimension(array, expected_dims)
+    def __init__(self):
+        self.__tau_old = 1.0
 
-        # check drop axis and chunksize
-        if array.ndim == 2:
-            drop_axis = (0,)
-            chunks = (array.shape[0], 1)
-        else:
-            drop_axis = (0, 1)
-            chunks = (array.shape[0], array.shape[1], 1)
+    @property
+    def need_chain(self) -> bool:
+        return False
 
-        if not isinstance(array, da.Array):
-            darr = da.from_array(array, chunks=chunks)
-        else:
-            darr = array
+    @property
+    def need_dim(self) -> bool:
+        return False
 
-        # compute
-        res = darr.map_blocks(
-            self._calc, drop_axis=drop_axis, dtype=array.dtype, meta=np.array([])
-        )
-        return res.compute()
+    @property
+    def drop_chain(self) -> bool:
+        return False
+
+    @property
+    def drop_dim(self) -> bool:
+        return False
+
+    @property
+    def expected_dim(self) -> tuple[int, ...]:
+        return 1, 2
+
+    def compute(self, array: np.ndarray | da.Array) -> np.ndarray | da.Array:
+        check_dimension(array, self.expected_dim)
+        match array:
+            case np.ndarray():
+                result = self._calc_iat(array)
+            case da.Array() | Delayed():
+                result = da.map_blocks(self._calc_iat, array)
+            case _:
+                raise TypeError(f"input type {type(array)} is invalid.")
+        return result
 
     @staticmethod
-    def _calc(array: np.ndarray) -> np.ndarray:
-
-        if array.ndim == 3:
-            result = []
-            for i in range(array.shape[-1]):
-                tau_init = estimate_iat(calc_acf(array[..., 0, i]))
-                result.append([calc_iat_gp(array[..., :, i], tau_init=tau_init)])
-        elif array.ndim == 2:
-            result = []
-            for i in range(array.shape[-1]):
-                tau_init = estimate_iat(calc_acf(array[..., i]))
-                result.append(calc_iat_gp(array[..., i], tau_init=tau_init))
-        elif array.ndim == 1:
+    def _calc_iat(array: np.ndarray, tau_init: float = 1.0) -> np.ndarray:
+        if array.ndim == 1:
             tau_init = estimate_iat(calc_acf(array))
             result = [calc_iat_gp(array, tau_init=tau_init)]
         else:
-            raise ValueError(f"{array.shape=}")
-
+            tau_init = estimate_iat(calc_acf(array[..., 0]))
+            result = calc_iat_gp(array[..., 0], tau_init=tau_init)
         return np.asarray(result)
 
     @property
@@ -207,10 +223,4 @@ def calc_iat_gp(
     return tau
 
 
-"""
-100%|██████████| 6/6 [00:03<00:00,  1.53it/s]
-100%|██████████| 6/6 [03:47<00:00, 37.86s/it]
-100%|██████████| 6/6 [00:52<00:00,  8.71s/it]
-100%|██████████| 6/6 [01:46<00:00, 17.73s/it]
-100%|██████████| 6/6 [03:32<00:00, 35.43s/it]
-"""
+NORMAL_IAT_METHODS = (FFTStrategy.method_name, GPStrategy.method_name)
