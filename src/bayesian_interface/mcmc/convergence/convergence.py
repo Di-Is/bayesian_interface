@@ -29,12 +29,16 @@ class ConvergenceResult(bay_data.AbsData):
     # Threshold Type
     threshold_type: bay_data.AbsAttr  # upper or lower equal
     # The checked step
+    # shape: (check_step)
     steps: bay_data.AbsArray
     # The checked criterion values corresponding steps
+    # shape: (Op[chain], check_step, Op[dim])
     criterion_values: bay_data.AbsArray
     # convergence flags
+    # shape: (Op[chain], Op[dim]), minimum is (1,), not scaler.
     convergences: bay_data.AbsArray
     # The number of converge steps
+    # shape: (Op[chain], Op[dim]), minimum is (1,), not scaler.
     convergence_steps: bay_data.AbsArray
 
     @classmethod
@@ -198,6 +202,8 @@ class Convergence:
             "threshold_type",
             "criterion_values",
             "steps",
+            "convergence_steps",
+            "convergence_step",
             "convergences",
             "convergence",
         ]
@@ -295,28 +301,24 @@ class Convergence:
         )
 
         # initialize data
-        # TODO:ifブロックをメソッド化するか、shape,maxshapeのリファクタリングを実施
         if not self.check_initialized():
             if on_chain and on_dim:
                 cri_shape = (nchain, 0, ndim)
                 cri_max = (nchain, None, ndim)
                 convs_shape = (nchain, ndim)
-                convs_max = (nchain, ndim)
             elif on_chain:
                 cri_shape = (nchain, 0)
                 cri_max = (nchain, None)
                 convs_shape = nchain
-                convs_max = nchain
             elif on_dim:
                 cri_shape = (0, ndim)
                 cri_max = (None, ndim)
                 convs_shape = (ndim,)
-                convs_max = (ndim,)
             else:
                 cri_shape = (1,)
                 cri_max = (None,)
                 convs_shape = (1,)
-                convs_max = (1,)
+
             # attr
             self.data.criterion_method.set(self._strategy.algorithm_name)
             self.data.threshold_type.set(self._strategy.threshold_type)
@@ -325,21 +327,59 @@ class Convergence:
                 cri_shape, maxshape=cri_max, dtype=np.float32
             )
             self.data.convergences.create(
-                convs_shape, maxshape=convs_max, dtype=np.bool
+                convs_shape, maxshape=convs_shape, dtype=np.bool
+            )
+            self.data.convergences.set(np.full(convs_shape, False))
+            self.data.convergence_steps.create(
+                convs_shape, maxshape=convs_shape, dtype=int
             )
             self.data.steps.create(shape=(0,), maxshape=(None,), dtype=int)
 
         convergences = check_relation(self._strategy.threshold_type, res, threshold)
+        convergence = np.all(convergences)
         self.data.threshold.set(threshold)
         self.data.threshold_type.set(self._strategy.threshold_type)
         if on_chain:
             self.data.criterion_values.append(res[:, np.newaxis], axis=1)
         else:
             self.data.criterion_values.append(res[np.newaxis], axis=0)
+
+        if self.data.convergence_step.has():
+            if self.data.convergence_step == -1 and convergence:
+                self.data.convergence_step.set(nstep)
+            else:
+                self.data.convergence_step.set(-1)
+        else:
+            if convergence:
+                self.data.convergence_step.set(nstep)
+            else:
+                self.data.convergence_step.set(-1)
+
+        if self.data.convergences.has():
+            old_flags = self.data.convergences[:]
+        else:
+            old_flags = np.full(convergences.shape, False)
+
+        if self.data.convergence_steps.has():
+            conv_steps = self.data.convergence_steps[:]
+        else:
+            conv_steps = np.full(convergences.shape, -1)
+
+        for idx in np.ndindex(*convergences.shape):
+            match (bool(convergences[idx]), bool(old_flags[idx])):
+                case (True, True):
+                    pass
+                case (True, False):
+                    conv_steps[idx] = nstep
+                case (False, True):
+                    conv_steps[idx] = -1
+                case (False, False):
+                    conv_steps[idx] = -1
+        self.data.convergence_steps.set(conv_steps)
+
         self.data.steps.append(np.asarray(nstep), axis=0)
         self.data.convergences.set(np.asarray(convergences))
         self.data.convergence.set(np.all(convergences))
-
         logger.info(f"[{self._strategy.algorithm_name}] End convergence check.")
         return self.data
 
