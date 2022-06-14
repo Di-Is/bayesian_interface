@@ -1,3 +1,5 @@
+"""This module provides a class to determine convergence of MCMC chains.
+"""
 import typing
 from enum import Enum
 from abc import abstractmethod, ABCMeta
@@ -10,8 +12,6 @@ from .pre_process import AbsPreprocess
 from ...logger import Logger
 
 logger = Logger("mcmc.convergence")
-
-# TODO: Add logging
 
 
 class ConvergenceResult(bay_data.AbsData):
@@ -223,7 +223,7 @@ class Convergence:
         :param threshold: convergence Threshold.
         :return: convergence result.
         """
-        logger.info(f"[{self._strategy.algorithm_name}] Start convergence check.")
+        logger.debug(f"[{self._strategy.algorithm_name}] Start convergence check.")
 
         # Error Check
         if array.ndim < sum([on_chain, on_dim]) + 1:
@@ -379,7 +379,7 @@ class Convergence:
         self.data.steps.append(np.asarray(nstep), axis=0)
         self.data.convergences.set(np.asarray(convergences))
         self.data.convergence.set(np.all(convergences))
-        logger.info(f"[{self._strategy.algorithm_name}] End convergence check.")
+        logger.debug(f"[{self._strategy.algorithm_name}] End convergence check.")
         return self.data
 
     @property
