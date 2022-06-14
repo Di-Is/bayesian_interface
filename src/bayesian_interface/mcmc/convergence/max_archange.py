@@ -35,7 +35,7 @@ class MaxArchangeStrategy(AbsStrategy):
     @classmethod
     @property
     def algorithm_name(cls) -> str:  # noqa
-        return "maxArchange"
+        return "max_archange"
 
     @classmethod
     @property

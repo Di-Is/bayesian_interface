@@ -2,11 +2,10 @@ import typing
 
 import numpy as np
 import dask.array as da
-from dask.delayed import Delayed
+from dask.delayed import Delayed, delayed
 
 from .convergence import AbsStrategy, MagnitudeRelation
-
-# TODO: Implement compute method
+from ._gr_impl import calc_stable_psrf
 
 
 class StableGRMaxEigen(AbsStrategy):
@@ -15,7 +14,7 @@ class StableGRMaxEigen(AbsStrategy):
 
     @property
     def algorithm_name(cls) -> str:  # noqa
-        return "Stable GR max eigen"
+        return "stable_gr_max_eigen"
 
     @classmethod
     @property
@@ -32,14 +31,15 @@ class StableGRMaxEigen(AbsStrategy):
             case np.ndarray():
                 result = self._calc_criterion(array)
             case da.Array() | Delayed():
-                result = self._calc_criterion(array)
+                result = delayed(self._calc_criterion)(array)
             case _:
                 raise TypeError(f"input type {type(array)} is invalid.")
         return result
 
     @staticmethod
     def _calc_criterion(array: np.ndarray) -> float:
-        return array.mean()
+        _, _, max_eigin = calc_stable_psrf(np.asarray(array))
+        return max_eigin
 
     @property
     def need_chain(self) -> bool:

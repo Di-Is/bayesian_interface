@@ -9,12 +9,11 @@ from .convergence import AbsStrategy, MagnitudeRelation
 
 class GRRank(AbsStrategy):
     def __init__(self, threshold: float = 1.01) -> None:
-
         super().__init__(threshold)
 
     @property
     def algorithm_name(self) -> str:
-        return "GR rank"
+        return "gr_rank"
 
     @classmethod
     @property

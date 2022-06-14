@@ -26,7 +26,7 @@ def get_mcse(
     :param trim_method: チェーンをバッチの数で切り揃える時の方法
     :return: mcse
     """
-
+    #  print(batch_size)
     nprocesses, nsteps, ndim = chain_3d.shape
 
     batch_size_inv = int(np.floor(batch_size / lagsail_factor))
@@ -190,17 +190,17 @@ def get_batchsize(
     b_arr = np.empty(nprocesses, dtype=np.int64)
 
     # calc AR coeff part
-    for i in prange(nprocesses):
+    for i in range(nprocesses):
         sigma2 = 0
         gamma2 = 0
-        for j in prange(ndim):
+        for j in range(ndim):
             chain_1d = chain_3d[i, :, j]
             ar_coeffs, ar_sigma2 = select_order(chain_1d)
             gamma = get_auto_covariance(chain_1d - chain_1d.mean(), len(ar_coeffs))
             fac = 0.0
             for k, coeff in enumerate(ar_coeffs):
                 for m in range(k + 1):
-                    gamma_ind = abs(m - i)
+                    gamma_ind = abs(m - k)
                     fac += coeff * (m + 1) * gamma[gamma_ind]
 
             sigma = ar_sigma2 / (1 - np.sum(ar_coeffs)) ** 2
@@ -412,60 +412,3 @@ def calc_stable_psrf(
     mpsrf_max_eigenvalue = np.sqrt(fac1 + fac2 * eigenvalue_max)
 
     return psrf, mpsrf_determinant, mpsrf_max_eigenvalue
-
-
-class ConvImpls:
-    def __init__(self, threshold: float) -> None:
-        self._threshold = threshold
-
-    def get_converged_steps(
-        self, psrf: np.ndarray, slice_steps: np.ndarray
-    ) -> Union[float, int]:
-        """収束したステップを出力する
-        :param psrf: PSRFのアレイ
-        :param slice_steps: 収束判定を行うステップを格納したアレイ
-        :return: 収束判定がでたステップ数
-        """
-        if len(psrf) != len(slice_steps):
-            raise ValueError(f"第一引数と第二引数の長さが異なります({len(psrf)}, {len(slice_steps)})")
-
-        if len(psrf) == 0:
-            raise ValueError("引数のアレイの長さが0です")
-
-        # psrfが1を下回る場合、1を基準に値を反転させる
-        _psrf = np.abs(psrf - 1.0) + 1.0
-
-        # 収束していない要素のインデックスを取得
-        un_conv_idxs = np.where(_psrf > self._threshold)[0]
-
-        # 最初のステップから収束している場合
-        if len(un_conv_idxs) == 0:
-            nburn = slice_steps[0]
-        else:
-            # 収束していないステップの最大値に対応するインデックス
-            un_conv_idx_max = un_conv_idxs[np.argmax(un_conv_idxs)]
-            # 収束している場合
-            if un_conv_idx_max != len(_psrf) - 1:
-                conv_idx = un_conv_idx_max + 1
-                nburn = slice_steps[conv_idx]
-            # 収束していない場合
-            else:
-                nburn = np.nan
-        return nburn
-
-    def check_converge(self, upsrf: np.ndarray) -> bool:
-        _psrf = np.abs(upsrf - 1.0) + 1.0
-        if _psrf.ndim == 1:
-            return _psrf[-1] <= self._threshold
-        else:
-            return all(_psrf[-1] <= self._threshold)
-
-
-class StableGRImpl(GRSimImplBase):
-    def __init__(self, bm_method: BATCH_MEAN_METHOD_TYPE, lagsail_fac: int):
-        super().__init__()
-        self._bm_method = bm_method
-        self._lagsail_fac = lagsail_fac
-
-    def _calc_psrf(self, chain: np.ndarray):
-        return calc_stable_psrf(chain, self._bm_method, self._lagsail_fac)

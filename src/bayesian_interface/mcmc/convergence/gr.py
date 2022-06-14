@@ -14,19 +14,12 @@ class GR(AbsStrategy):
     """Class to calculate convergence criterion for GelmanRubin"""
 
     def __init__(self, threshold: float = 1.01) -> None:
-        self._threshold = threshold
-
-    @property
-    def threshold(self) -> float:
-        """convergence threshold
-        :return: convergence threshold
-        """
-        return self._threshold
+        super().__init__(threshold)
 
     @classmethod
     @property
     def algorithm_name(cls) -> str:  # noqa
-        return "GR"
+        return "gr"
 
     @classmethod
     @property
