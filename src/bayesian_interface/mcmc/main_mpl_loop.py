@@ -184,15 +184,14 @@ class McmcSampling:
 def main():
     nchain = 4
     nprocess = 4
-    ndim = 2
+    ndim = 10
     save_step = 1000
     check_step = 1000
     threshold_sample = 100000
 
     pool = ProcessPoolExecutor(nprocess)
-
     mu = 1.0
-    cov = 0.5 - np.random.rand(ndim**2).reshape((ndim, ndim))
+    cov = 0.5 - 10 * np.random.rand(ndim**2).reshape((ndim, ndim))
     cov = np.triu(cov)
     cov += cov.T - np.diag(cov.diagonal())
     cov = np.dot(cov, cov)
@@ -204,7 +203,7 @@ def main():
 
     # create samplers
     # sa_samp(nchain, lnprob, ndim, threshold_sample, pool, check_step, save_step)
-    emcee_samp(nchain, lnprob, ndim, 256, threshold_sample, pool, check_step, save_step)
+    emcee_samp(nchain, lnprob, ndim, 512, threshold_sample, pool, check_step, save_step)
 
 
 def sa_samp(
@@ -213,8 +212,8 @@ def sa_samp(
     ndim: int,
     threshold_sample: int = 1e6,
     pool: typing.Optional[Executor] = None,
-    interval: int = 2000,
-    save_step: int = 1000,
+    interval: int = 1000,
+    save_step: int = 3000,
 ):
     sampler_kwargs = {"nparticle": 150}
 
@@ -237,7 +236,7 @@ def sa_samp(
     pre_conv = Convergence(
         [
             bay_conv.Convergence(bay_conv.GRRank()),
-            bay_conv.Convergence(bay_conv.GR()),
+            bay_conv.Convergence(bay_conv.StableGRMaxEigen()),
             bay_conv.Convergence(
                 bay_conv.MaxArchangeStrategy(),
                 pre_process=bay_conv.AutoCorrPreProcess(
@@ -316,23 +315,49 @@ def emcee_samp(
     # convergence strategy
     pre_conv = Convergence(
         [
+            bay_conv.Convergence(bay_conv.Manual()),
+            bay_conv.Convergence(
+                bay_conv.GR(), pre_process=bay_conv.EnsembleCompressor()
+            ),
             bay_conv.Convergence(
                 bay_conv.GRRank(), pre_process=bay_conv.EnsembleCompressor()
             ),
             bay_conv.Convergence(
-                bay_conv.GR(), pre_process=bay_conv.EnsembleCompressor()
+                bay_conv.StableGR(),
+                pre_process=bay_conv.EnsembleCompressor(),
+            ),
+            bay_conv.Convergence(
+                bay_conv.StableGRDeterminant(),
+                pre_process=bay_conv.EnsembleCompressor(),
+            ),
+            bay_conv.Convergence(
+                bay_conv.StableGRMaxEigen(), pre_process=bay_conv.EnsembleCompressor()
             ),
             bay_conv.Convergence(
                 bay_conv.MaxArchangeStrategy(),
                 pre_process=bay_conv.AutoCorrPreProcess(
                     bay_acor.AutoCorrTime(
-                        bay_acor.CalcMeanStrategy(bay_acor.FFTStrategy())
+                        bay_acor.FlattenCalcStrategy(bay_acor.FFTStrategy())
                     )
                 ),
             ),
+            bay_conv.Convergence(
+                bay_conv.MinAfactorStrategy(100, nwalker=nwalker),
+                pre_process=bay_conv.AutoCorrPreProcess(
+                    bay_acor.AutoCorrTime(
+                        bay_acor.FlattenCalcStrategy(bay_acor.FFTStrategy()),
+                    )
+                ),
+            ),
+            bay_conv.Convergence(
+                bay_conv.ESSBulk(nwalker=nwalker),
+                pre_process=bay_conv.pre_process.EnsembleCompressor(),
+            ),
         ]
     )
-    iat_inst = bay_acor.AutoCorrTime(bay_acor.CalcMeanStrategy(bay_acor.FFTStrategy()))
+    iat_inst = bay_acor.AutoCorrTime(
+        bay_acor.FlattenCalcStrategy(bay_acor.FFTStrategy())
+    )
     post_conv = Convergence(
         [
             bay_conv.Convergence(
@@ -344,7 +369,10 @@ def emcee_samp(
 
     # build sampling instance
     sampler = McmcSampling(mgr, pre_conv, post_conv, interval=interval)
-    sampler.sampling(np.random.randn(nchain, nwalker, ndim))
+    init_state = 10.0 * np.random.randn(nchain, nwalker, ndim) + 10.0 * np.random.randn(
+        nchain, nwalker, ndim
+    )
+    sampler.sampling(init_state)
 
     res = sampler.sampling_result
     nburn = sampler.nburn
@@ -365,6 +393,23 @@ def emcee_samp(
     fig = plt.gcf()
     fig.savefig("trace.png")
     del fig
+
+    for key in sampler.pre_convergence_result.keys():
+        PlotCriterion().plot(sampler.pre_convergence_result[key])
+
+
+class PlotCriterion:
+    def plot(self, conv_result: bay_conv.ConvergenceResult):
+
+        ndim = conv_result.convergences.shape[-1]
+        fig, axes = plt.subplots(4, 4, figsize=(12, 8))
+        for dim_id in range(ndim):
+            axes.flat[dim_id].plot(
+                conv_result.steps, conv_result.criterion_values[0, ..., dim_id]
+            )
+            axes.flat[dim_id].axhline(conv_result.threshold.get(), ls="dashed")
+        plt.savefig(f"{conv_result.criterion_method}.png")
+        plt.close()
 
 
 if __name__ == "__main__":
