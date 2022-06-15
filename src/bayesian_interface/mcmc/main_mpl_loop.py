@@ -337,7 +337,7 @@ def emcee_samp(
                 bay_conv.MaxArchangeStrategy(),
                 pre_process=bay_conv.AutoCorrPreProcess(
                     bay_acor.AutoCorrTime(
-                        bay_acor.FlattenCalcStrategy(bay_acor.FFTStrategy())
+                        bay_acor.CalcMeanStrategy(bay_acor.FFTStrategy())
                     )
                 ),
             ),
@@ -345,7 +345,7 @@ def emcee_samp(
                 bay_conv.MinAfactorStrategy(100, nwalker=nwalker),
                 pre_process=bay_conv.AutoCorrPreProcess(
                     bay_acor.AutoCorrTime(
-                        bay_acor.FlattenCalcStrategy(bay_acor.FFTStrategy()),
+                        bay_acor.CalcMeanStrategy(bay_acor.FFTStrategy()),
                     )
                 ),
             ),
@@ -355,13 +355,11 @@ def emcee_samp(
             ),
         ]
     )
-    iat_inst = bay_acor.AutoCorrTime(
-        bay_acor.FlattenCalcStrategy(bay_acor.FFTStrategy())
-    )
+    iat_inst = bay_acor.AutoCorrTime(bay_acor.CalcMeanStrategy(bay_acor.FFTStrategy()))
     post_conv = Convergence(
         [
             bay_conv.Convergence(
-                bay_conv.ESSIATStrategy(threshold_sample, nwalker),
+                bay_conv.ESSFromIAT(threshold_sample, nwalker=nwalker),
                 pre_process=bay_conv.AutoCorrPreProcess(iat_inst),
             )
         ]
