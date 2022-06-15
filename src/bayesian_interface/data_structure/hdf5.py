@@ -91,6 +91,7 @@ class Array(parts.AbsArray):
         else:
             f = h5py.File(self.fpath, "r")
             g = f[self.gpath]
+            # TODO modify zero copy pass object
             if idx is None:
                 return g[self.name][:]
             else:
