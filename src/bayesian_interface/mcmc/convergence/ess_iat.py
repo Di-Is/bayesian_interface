@@ -6,10 +6,12 @@ import numpy as np
 from .convergence import AbsStrategy, MagnitudeRelation
 
 
-class ESSIATStrategy(AbsStrategy):
-    def __init__(self, threshold: typing.Optional[float] = 100000, *args) -> None:
+class ESSFromIAT(AbsStrategy):
+    def __init__(
+        self, threshold: typing.Optional[float] = 100000, **external_lengths
+    ) -> None:
         super().__init__(threshold)
-        self._external_lengths = args
+        self._external_lengths = external_lengths
 
     @property
     def expected_dim(self) -> int | tuple[int, ...]:
@@ -43,9 +45,9 @@ class ESSIATStrategy(AbsStrategy):
 
     def compute(self, array: np.ndarray) -> float:
         nchain, nsteps = array.shape[:2]
-        if self._external_lengths is None:
+        if len(self._external_lengths) == 0:
             extra = 1
         else:
-            extra = math.prod(self._external_lengths)
+            extra = math.prod(self._external_lengths.values())
         iats = array[:, -1]
         return (nchain * nsteps * extra / iats).sum(axis=0)
