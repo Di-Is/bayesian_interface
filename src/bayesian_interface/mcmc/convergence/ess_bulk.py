@@ -29,7 +29,7 @@ class ESSBulk(AbsStrategy):
     def threshold_type(cls) -> MagnitudeRelation:  # noqa
         return MagnitudeRelation.upper
 
-    def compute(self, array: np.ndarray) -> np.ndarray:
+    def compute(self, array: np.ndarray) -> float:
         from arviz.stats.diagnostics import _ess_bulk
 
         if self._external_lengths is None:
@@ -45,7 +45,7 @@ class ESSBulk(AbsStrategy):
             case _:
                 raise TypeError(f"input type {type(array)} is invalid.")
 
-        return result * extra
+        return result.sum() * extra
 
     @property
     def need_dim(self) -> bool:
@@ -57,8 +57,8 @@ class ESSBulk(AbsStrategy):
 
     @property
     def need_chain(self) -> bool:
-        return False
+        return True
 
     @property
     def drop_chain(self) -> bool:
-        return False
+        return True
