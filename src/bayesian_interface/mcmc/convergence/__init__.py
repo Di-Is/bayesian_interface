@@ -6,7 +6,7 @@ from .stable_gr_det import StableGRDeterminant
 from .stable_gr_max_eigen import StableGRMaxEigen
 
 # using iat
-from .ess_iat import ESSIATStrategy
+from .ess_iat import ESSFromIAT
 from .min_afactor import MinAfactorStrategy
 from .max_archange import MaxArchangeStrategy
 
