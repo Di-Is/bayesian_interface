@@ -13,6 +13,8 @@ from ...logger import Logger
 
 logger = Logger("mcmc.convergence")
 
+# TODO refactoring check_convergence
+
 
 class ConvergenceResult(bay_data.AbsData):
     """Class to store the result of convergence check"""
