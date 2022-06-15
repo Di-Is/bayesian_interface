@@ -1,10 +1,11 @@
 import typing
 
 import numpy as np
+import dask.array as da
 
 
 def check_dimension(
-    array: np.ndarray, expected_dims: int | tuple[int, ...]
+    array: np.ndarray | da.Array, expected_dims: int | tuple[int, ...]
 ) -> typing.NoReturn:
     if isinstance(expected_dims, int):
         expected_dims = (expected_dims,)
