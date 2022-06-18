@@ -49,7 +49,11 @@ class ESSFromIAT(AbsStrategy):
     def threshold_type(cls) -> MagnitudeRelation:  # noqa
         return MagnitudeRelation.upper
 
-    def compute(self, array: np.ndarray) -> float:
+    def compute(self, array: np.ndarray | da.Array) -> float:
+        """Compute effective sample size from integrated auto correlation time.
+        :param array: input array
+        :return: criterion value
+        """
         nchain, nsteps = array.shape[:2]
         if len(self._external_lengths) == 0:
             extra = 1
