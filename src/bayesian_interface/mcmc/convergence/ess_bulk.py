@@ -1,4 +1,5 @@
-import typing
+"""This module provides a class to compute convergence criterion(bulk ess).
+"""
 import math
 
 import numpy as np
@@ -9,14 +10,17 @@ from .convergence import AbsStrategy, MagnitudeRelation
 
 
 class ESSBulk(AbsStrategy):
-    def __init__(
-        self, threshold: typing.Optional[float] = 100000.0, **external_lengths
-    ) -> None:
+    """Class to compute convergence criterion of MCMC chains"""
+
+    def __init__(self, threshold: float = 100000.0, **external_lengths) -> None:
         super().__init__(threshold)
         self._external_lengths = external_lengths
 
     @property
     def expected_dim(self) -> int | tuple[int, ...]:
+        """expected input array dim is (chain, nsteps)
+        :return:
+        """
         return 2
 
     @classmethod
@@ -30,6 +34,11 @@ class ESSBulk(AbsStrategy):
         return MagnitudeRelation.upper
 
     def compute(self, array: np.ndarray) -> float:
+        """Compute bulk effective sample size.
+        :param array: input array
+        :return: criterion value
+        Ref. Vehtari (2021)
+        """
         from arviz.stats.diagnostics import _ess_bulk
 
         if self._external_lengths is None:

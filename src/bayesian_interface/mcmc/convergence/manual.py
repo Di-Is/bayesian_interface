@@ -1,4 +1,5 @@
-import typing
+"""This module provides a class to compute convergence criterion(fixed length convergence).
+"""
 
 import numpy as np
 import dask.array as da
@@ -10,6 +11,8 @@ from .misc import check_dimension
 
 
 class Manual(AbsStrategy):
+    """Class to compute convergence criterion of MCMC chains"""
+
     def __init__(self, threshold: float = 1000.0) -> None:
         super().__init__(threshold)
 
@@ -28,7 +31,11 @@ class Manual(AbsStrategy):
         return 1
 
     @classmethod
-    def compute(cls, array: np.ndarray) -> float:
+    def compute(cls, array: np.ndarray | da.Array) -> float:
+        """Compute array nstep
+        :param array: input array
+        :return: criterion value
+        """
         match array:
             case np.ndarray():
                 result = len(array)

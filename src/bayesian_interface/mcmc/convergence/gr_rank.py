@@ -1,4 +1,5 @@
-import typing
+"""This module provides a class to compute convergence criterion(rank normalized gelman rubin rhat).
+"""
 
 import numpy as np
 import dask.array as da
@@ -8,6 +9,8 @@ from .convergence import AbsStrategy, MagnitudeRelation
 
 
 class GRRank(AbsStrategy):
+    """Class to compute convergence criterion of MCMC chains"""
+
     def __init__(self, threshold: float = 1.01) -> None:
         super().__init__(threshold)
 
@@ -41,7 +44,11 @@ class GRRank(AbsStrategy):
         return True
 
     def compute(self, array: np.ndarray) -> float:
-
+        """Compute rank normalized gelman rubin rhat.
+        :param array: input array
+        :return: criterion value
+        Ref. Vehtari et al. (2019)
+        """
         match array:
             case np.ndarray():
                 result = self._calc_criterion(array)

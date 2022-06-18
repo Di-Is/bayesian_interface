@@ -1,7 +1,5 @@
-"""Module to calculate convergence criterion for GelmanRubin
+"""This module provides a class to compute convergence criterion(gelman rubin rhat).
 """
-import typing
-
 import numpy as np
 import dask.array as da
 from dask.delayed import Delayed
@@ -11,7 +9,7 @@ from .misc import check_dimension
 
 
 class GR(AbsStrategy):
-    """Class to calculate convergence criterion for GelmanRubin"""
+    """Class to compute convergence criterion of MCMC chains"""
 
     def __init__(self, threshold: float = 1.01) -> None:
         super().__init__(threshold)
@@ -32,9 +30,10 @@ class GR(AbsStrategy):
         return 2
 
     def compute(self, array: np.ndarray | da.Array) -> float:
-        """calculate convergence criterion
-        :param array: mcmc chain
+        """Compute gelman rubin rhat.
+        :param array: input array
         :return: criterion value
+        Ref. Gelman & Rubin, 1992
         """
         check_dimension(array, self.expected_dim)
 

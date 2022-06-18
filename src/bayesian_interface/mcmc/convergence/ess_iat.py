@@ -1,20 +1,26 @@
-import typing
+"""This module provides a class to compute convergence criterion(ess calculated iat).
+"""
 import math
+import typing
 
 import numpy as np
+import dask.array as da
 
 from .convergence import AbsStrategy, MagnitudeRelation
 
 
 class ESSFromIAT(AbsStrategy):
-    def __init__(
-        self, threshold: typing.Optional[float] = 100000, **external_lengths
-    ) -> None:
+    """Class to compute convergence criterion of MCMC chains"""
+
+    def __init__(self, threshold: float = 100000, **external_lengths) -> None:
         super().__init__(threshold)
         self._external_lengths = external_lengths
 
     @property
     def expected_dim(self) -> int | tuple[int, ...]:
+        """expected input array dim is (chain, nsteps)
+        :return:
+        """
         return 2
 
     @property
